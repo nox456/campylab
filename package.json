@@ -11,10 +11,8 @@
     "db:init": "node src/backend/src/db/init-db.js"
   },
   "dependencies": {
-    "pg": "^8.16.3",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
-    "dotenv": "^17.2.3",
     "jsonwebtoken": "^9.0.3",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.2",
@@ -66,14 +64,15 @@
     "vaul": "^1.1.2",
     "zod": "^3.24.1",
     "@heroicons/react": "^2.2.0",
-    "express": "^5.2.1",
     "@eslint/js": "9.39.2",
     "globals": "17.0.0",
     "eslint-plugin-react-hooks": "7.0.1",
     "eslint-plugin-react-refresh": "0.4.26",
     "eslint": "9.39.2",
     "vite": "7.3.1",
-    "@vitejs/plugin-react": "5.1.2"
+    "@vitejs/plugin-react": "5.1.2",
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
