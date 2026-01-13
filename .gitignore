@@ -22,3 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# --- Seguridad (CRÍTICO) ---
+# Aquí van tus claves de Neon. NUNCA quitar esto.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- Build / Archivos generados ---
+dist/
+build/
+coverage/
+
+# --- Archivos del Sistema Operativo (Basura) ---
+Thumbs.db
