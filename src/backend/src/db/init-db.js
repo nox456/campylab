@@ -1,14 +1,5 @@
 import 'dotenv/config';
-import pg from 'pg';
-
-// Desempaquetamos el Cliente de la librería pg
-const { Client } = pg;
-
-// 1. Configuración del Cliente
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // Neon requiere conexión encriptada
-});
+import { client } from './client';
 
 // 2. La función asíncrona (porque la red tarda)
 async function initDB() {
