@@ -5,12 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import { BeakerIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 export default function Login() {
-  const { login } = useAuth();
-  const [cedula, setCedula] = useState('');
+  const { login, register } = useAuth();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isRegister, setIsRegister] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,7 +19,9 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const result = await login(cedula, password);
+      const result = isRegister
+        ? await register(email, password)
+        : await login(email, password);
       if (!result.success) {
         setError(result.error);
       }
@@ -67,7 +70,7 @@ export default function Login() {
         {/* Login Card */}
         <div className="card" style={{ padding: '2rem' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1.5rem', textAlign: 'center' }}>
-            Iniciar Sesion
+            {isRegister ? 'Crear Cuenta' : 'Iniciar Sesion'}
           </h2>
 
           {error && (
@@ -78,16 +81,16 @@ export default function Login() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label className="form-label" htmlFor="cedula">
-                Cedula
+              <label className="form-label" htmlFor="email">
+                Correo Electronico
               </label>
               <input
-                type="text"
-                id="cedula"
+                type="email"
+                id="email"
                 className="form-input"
-                placeholder="Ingrese su cedula"
-                value={cedula}
-                onChange={(e) => setCedula(e.target.value)}
+                placeholder="Ingrese su correo"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
@@ -106,6 +109,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={8}
                 />
                 <button
                   type="button"
@@ -129,6 +133,11 @@ export default function Login() {
                   )}
                 </button>
               </div>
+              {isRegister && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.25rem' }}>
+                  Minimo 8 caracteres
+                </p>
+              )}
             </div>
 
             <button
@@ -137,35 +146,35 @@ export default function Login() {
               disabled={loading}
               style={{ padding: '0.75rem' }}
             >
-              {loading ? 'Ingresando...' : 'Ingresar'}
+              {loading ? (isRegister ? 'Registrando...' : 'Ingresando...') : (isRegister ? 'Registrarse' : 'Ingresar')}
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div style={{ 
-            marginTop: '1.5rem', 
-            padding: '1rem', 
-            backgroundColor: 'var(--muted)', 
-            borderRadius: 'var(--radius)',
-            fontSize: '0.8125rem',
-          }}>
-            <p style={{ fontWeight: 600, marginBottom: '0.5rem', color: 'var(--foreground)' }}>
-              Credenciales de Prueba:
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', color: 'var(--muted-foreground)' }}>
-              <p><strong>Admin:</strong> 12345678</p>
-              <p><strong>Bioanalista:</strong> 23456789</p>
-              <p><strong>Recepcionista:</strong> 34567890</p>
-              <p><strong>Contrasena:</strong> 123456</p>
-            </div>
+          <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError('');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary)',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+              }}
+            >
+              {isRegister ? 'Ya tengo cuenta' : 'Crear cuenta nueva'}
+            </button>
           </div>
         </div>
 
-        <p style={{ 
-          textAlign: 'center', 
-          marginTop: '1.5rem', 
-          fontSize: '0.8125rem', 
-          color: 'var(--muted-foreground)' 
+        <p style={{
+          textAlign: 'center',
+          marginTop: '1.5rem',
+          fontSize: '0.8125rem',
+          color: 'var(--muted-foreground)'
         }}>
           &copy; 2025 CampyLab. Todos los derechos reservados.
         </p>

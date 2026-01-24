@@ -39,16 +39,17 @@ export default function Layout({ children, title }) {
     item.module === null || canAccessModule(item.module)
   );
 
-  const getRoleBadge = (rol) => {
+  const getRoleBadge = (role) => {
     const badges = {
       super_admin: { label: 'Super Admin', class: 'badge-info' },
       bioanalista: { label: 'Bioanalista', class: 'badge-success' },
       recepcionista: { label: 'Recepcionista', class: 'badge-warning' },
+      user: { label: 'Usuario', class: 'badge-neutral' },
     };
-    return badges[rol] || { label: rol, class: 'badge-neutral' };
+    return badges[role] || { label: role, class: 'badge-neutral' };
   };
 
-  const roleBadge = getRoleBadge(user?.rol);
+  const roleBadge = getRoleBadge(user?.role);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -157,7 +158,7 @@ export default function Layout({ children, title }) {
             <UserCircleIcon style={{ width: '40px', height: '40px', color: 'var(--muted-foreground)' }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontWeight: 500, fontSize: '0.875rem', color: 'var(--foreground)' }} className="truncate">
-                {user?.nombre}
+                {user?.nombre || user?.email}
               </p>
               <span className={`badge ${roleBadge.class}`} style={{ fontSize: '0.625rem' }}>
                 {roleBadge.label}
