@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { client } from './client';
+import { client } from './client.js';
 
 // 2. La función asíncrona (porque la red tarda)
 async function initDB() {
@@ -21,13 +21,14 @@ async function initDB() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS usuarios (
         id SERIAL PRIMARY KEY,
-        nombre VARCHAR(100) NOT NULL,
-        cedula VARCHAR(15) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE,
-        telefono VARCHAR(15) NOT NULL,
-        direccion VARCHAR(255) NOT NULL,
-        password VARCHAR(100) NOT NULL,
-        role VARCHAR(50) NOT NULL
+        nombre VARCHAR(100),
+        cedula VARCHAR(15) UNIQUE,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        telefono VARCHAR(15),
+        direccion VARCHAR(255),
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'user',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
 

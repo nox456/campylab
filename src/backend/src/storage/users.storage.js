@@ -1,32 +1,35 @@
-const users = new Map();
-let nextId = 1;
+import { client } from '../db/client.js';
 
 export const usersStorage = {
-  findByEmail(email) {
-    return users.get(email.toLowerCase()) || null;
+  async findByEmail(email) {
+    const result = await client.query(
+      'SELECT * FROM usuarios WHERE email = $1',
+      [email.toLowerCase()]
+    );
+    return result.rows[0] || null;
   },
 
-  findById(id) {
-    for (const user of users.values()) {
-      if (user.id === id) return user;
-    }
-    return null;
+  async findById(id) {
+    const result = await client.query(
+      'SELECT * FROM usuarios WHERE id = $1',
+      [id]
+    );
+    return result.rows[0] || null;
   },
 
-  create(email, passwordHash) {
-    const user = {
-      id: nextId++,
-      email: email.toLowerCase(),
-      passwordHash,
-      createdAt: new Date().toISOString(),
-    };
-    users.set(user.email, user);
-    return user;
+  async create(email, passwordHash) {
+    const result = await client.query(
+      `INSERT INTO usuarios (email, password)
+       VALUES ($1, $2)
+       RETURNING *`,
+      [email.toLowerCase(), passwordHash]
+    );
+    return result.rows[0];
   },
 
   sanitize(user) {
     if (!user) return null;
-    const { passwordHash, ...safeUser } = user;
+    const { password, ...safeUser } = user;
     return safeUser;
   },
 };
