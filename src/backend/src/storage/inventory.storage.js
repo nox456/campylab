@@ -2,8 +2,8 @@ import { client } from '../db/client.js';
 
 export const inventoryStorage = {
   // Get all products with aggregated stock from lots
-  async findAll() {
-    const query = `
+  async findAll(search = '') {
+    let query = `
       SELECT 
         p.*,
         COALESCE(SUM(l.cantidad_actual), 0) as stock_total,
@@ -17,10 +17,20 @@ export const inventoryStorage = {
         ) FILTER (WHERE l.id IS NOT NULL AND l.cantidad_actual > 0) as lotes_activos
       FROM productos p
       LEFT JOIN lotes l ON p.id = l.producto_id
+    `;
+
+    const values = [];
+    if (search) {
+        query += ` WHERE p.nombre ILIKE $1 OR p.codigo_barras ILIKE $1`;
+        values.push(`%${search}%`);
+    }
+
+    query += `
       GROUP BY p.id
       ORDER BY p.nombre ASC
     `;
-    const result = await client.query(query);
+    
+    const result = await client.query(query, values);
     return result.rows;
   },
 

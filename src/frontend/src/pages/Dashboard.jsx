@@ -14,33 +14,38 @@ import {
   ClockIcon,
 } from '@heroicons/react/24/outline';
 
-// Mock data for dashboard
-const mockStats = {
-  totalPatients: 156,
-  ordersToday: 12,
-  pendingResults: 8,
-  lowStockItems: 3,
-  totalRevenue: 4520.50,
-  completedOrders: 145,
-};
 
-const recentOrders = [
-  { id: 1, patient: 'Maria Garcia', date: '2025-01-18', status: 'pendiente', total: 150.00 },
-  { id: 2, patient: 'Jose Rodriguez', date: '2025-01-18', status: 'completado', total: 280.00 },
-  { id: 3, patient: 'Ana Martinez', date: '2025-01-17', status: 'procesando', total: 95.00 },
-  { id: 4, patient: 'Carlos Lopez', date: '2025-01-17', status: 'pagado', total: 420.00 },
-  { id: 5, patient: 'Laura Hernandez', date: '2025-01-16', status: 'completado', total: 175.00 },
-];
-
-const lowStockItems = [
-  { id: 1, name: 'Tubos EDTA', current: 15, minimum: 50 },
-  { id: 2, name: 'Reactivo Glucosa', current: 8, minimum: 20 },
-  { id: 3, name: 'Lancetas', current: 25, minimum: 100 },
-];
 
 export default function Dashboard() {
   const { user, canAccessModule } = useAuth();
-  const [stats, setStats] = useState(mockStats);
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    ordersToday: 0,
+    pendingResults: 0,
+    lowStockItems: 0,
+    totalRevenue: 0,
+  });
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [lowStockItems, setLowStockItems] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/dashboard')
+      .then(res => res.json())
+      .then(data => {
+        if (data) {
+            setStats(data.stats || {
+                totalPatients: 0,
+                ordersToday: 0,
+                pendingResults: 0,
+                lowStockItems: 0,
+                totalRevenue: 0,
+            });
+            setRecentOrders(data.recentOrders || []);
+            setLowStockItems(data.lowStockItems || []);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -174,7 +179,7 @@ export default function Dashboard() {
                         <td>
                           <span className={statusBadge.class}>{statusBadge.label}</span>
                         </td>
-                        <td>${order.total.toFixed(2)}</td>
+                        <td>${Number(order.total).toFixed(2)}</td>
                       </tr>
                     );
                   })}

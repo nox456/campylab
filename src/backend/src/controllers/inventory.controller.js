@@ -3,7 +3,8 @@ import { inventoryStorage } from '../storage/inventory.storage.js';
 export const inventoryController = {
   async getAll(req, res) {
     try {
-      const items = await inventoryStorage.findAll();
+      const { search } = req.query;
+      const items = await inventoryStorage.findAll(search);
       // Transform data if needed for frontend expectation
       // Frontend expects: id, nombre, codigo, cantidad, minimo, unidad, proveedor (desc), lote (agg?), vencimiento (agg?)
       // We will send the full object and let frontend adapt.

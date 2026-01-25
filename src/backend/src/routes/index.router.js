@@ -8,10 +8,12 @@ import inventoryRouter from './inventory.router.js';
 import ordersRouter from './orders.router.js';
 import resultsRouter from './results.router.js';
 import paymentsRouter from './payments.router.js';
+import dashboardRouter from './dashboard.router.js';
 
 const router = express.Router();
 
 router.use('/auth', authRouter);
+router.use('/dashboard', requireAuth, dashboardRouter);
 router.use('/patients', requireAuth, patientsRouter);
 router.use('/exams', requireAuth, examsRouter);
 router.use('/inventory', requireAuth, inventoryRouter);
