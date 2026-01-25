@@ -29,7 +29,7 @@ export default function Patients() {
     fecha_nacimiento: '',
     telefono: '',
     direccion: '',
-    correo: '',
+    email: '',
     sexo: 'M',
   });
 
@@ -79,7 +79,7 @@ export default function Patients() {
         fecha_nacimiento: '',
         telefono: '',
         direccion: '',
-        correo: '',
+        email: '',
         sexo: 'M',
       });
     }
@@ -139,6 +139,9 @@ export default function Patients() {
     if (!birthDate) return 'N/A';
     const today = new Date();
     const birth = new Date(birthDate);
+    // Check for invalid date
+    if (isNaN(birth.getTime())) return 'N/A';
+    
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
@@ -161,12 +164,10 @@ export default function Patients() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        {canCreate && (
-          <button className="btn btn-primary" onClick={() => handleOpenModal()}>
-            <PlusIcon style={{ width: '18px', height: '18px' }} />
-            Nuevo Paciente
-          </button>
-        )}
+        <button className="btn btn-primary" onClick={() => handleOpenModal()}>
+          <PlusIcon style={{ width: '18px', height: '18px' }} />
+          Nuevo Paciente
+        </button>
       </div>
 
       {error && (
@@ -213,7 +214,7 @@ export default function Patients() {
                       </span>
                     </td>
                     <td>{patient.telefono}</td>
-                    <td>{patient.correo}</td>
+                    <td>{patient.email}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <Link 
@@ -275,7 +276,7 @@ export default function Patients() {
                       value={formData.cedula}
                       onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
                       required
-                      disabled={!!editingPatient} // Cedula usually shouldn't change
+                      disabled={!!editingPatient}
                     />
                   </div>
                   <div className="form-group">
@@ -330,8 +331,8 @@ export default function Patients() {
                   <input
                     type="email"
                     className="form-input"
-                    value={formData.correo}
-                    onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
                 </div>
 

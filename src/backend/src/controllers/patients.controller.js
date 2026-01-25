@@ -29,10 +29,10 @@ export const patientsController = {
 
   async create(req, res) {
     try {
-      const { nombre, cedula, telefono, direccion, email } = req.body;
+      const { nombre, cedula, telefono, direccion, email, sexo, fecha_nacimiento } = req.body;
 
       // Basic validation
-      if (!nombre || !cedula || !telefono || !direccion) {
+      if (!nombre || !cedula || !telefono || !direccion || !sexo || !fecha_nacimiento) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
@@ -47,7 +47,9 @@ export const patientsController = {
         cedula,
         email: email || null,
         telefono,
-        direccion
+        direccion,
+        sexo,
+        fecha_nacimiento
       });
 
       res.status(201).json(newPatient);
@@ -60,9 +62,9 @@ export const patientsController = {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { nombre, cedula, telefono, direccion, email } = req.body;
+      const { nombre, cedula, telefono, direccion, email, sexo, fecha_nacimiento } = req.body;
 
-      if (!nombre || !cedula || !telefono || !direccion) {
+      if (!nombre || !cedula || !telefono || !direccion || !sexo || !fecha_nacimiento) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 

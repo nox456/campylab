@@ -14,7 +14,9 @@ async function initDB() {
         cedula VARCHAR(15) UNIQUE NOT NULL,
         email VARCHAR(100) UNIQUE,
         telefono VARCHAR(15) NOT NULL,
-        direccion VARCHAR(255) NOT NULL
+        direccion VARCHAR(255) NOT NULL,
+        sexo VARCHAR(1) NOT NULL,
+        fecha_nacimiento DATE NOT NULL
       );
     `);
 

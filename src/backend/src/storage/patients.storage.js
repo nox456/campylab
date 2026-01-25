@@ -17,24 +17,24 @@ export const patientsStorage = {
   },
 
   async create(patient) {
-    const { nombre, cedula, email, telefono, direccion } = patient;
+    const { nombre, cedula, email, telefono, direccion, sexo, fecha_nacimiento } = patient;
     const result = await client.query(
-      `INSERT INTO pacientes (nombre, cedula, email, telefono, direccion)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO pacientes (nombre, cedula, email, telefono, direccion, sexo, fecha_nacimiento)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [nombre, cedula, email, telefono, direccion]
+      [nombre, cedula, email, telefono, direccion, sexo, fecha_nacimiento]
     );
     return result.rows[0];
   },
 
   async update(id, patient) {
-    const { nombre, cedula, email, telefono, direccion } = patient;
+    const { nombre, cedula, email, telefono, direccion, sexo, fecha_nacimiento } = patient;
     const result = await client.query(
       `UPDATE pacientes
-       SET nombre = $1, cedula = $2, email = $3, telefono = $4, direccion = $5
-       WHERE id = $6
+       SET nombre = $1, cedula = $2, email = $3, telefono = $4, direccion = $5, sexo = $6, fecha_nacimiento = $7
+       WHERE id = $8
        RETURNING *`,
-      [nombre, cedula, email, telefono, direccion, id]
+      [nombre, cedula, email, telefono, direccion, sexo, fecha_nacimiento, id]
     );
     return result.rows[0];
   },
