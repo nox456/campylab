@@ -83,53 +83,87 @@ export const resultsStorage = {
 
   async saveResult(data) {
     const { ordenId, examenId, pacienteId, userId, detalles } = data; // detalles: [{ nombre, unidad, valor }]
-    
+    // Start Transaction
     try {
         await client.query('BEGIN');
-        
-        // 1. Create Result Header
-        const headerRes = await client.query(
+
+        // Create Result Header
+        const resultHeader = await client.query(
             `INSERT INTO resultado (id_orden, id_examen, id_paciente, id_usuario)
              VALUES ($1, $2, $3, $4)
              RETURNING id`,
-            [ordenId, examenId, pacienteId, userId || 1] // Default user 1 if not provided for now
+            [ordenId, examenId, pacienteId, 1] // Fixed user id for now
         );
-        const resultId = headerRes.rows[0].id;
-        
-        // 2. Insert Details
-        for (const det of detalles) {
+        const resultId = resultHeader.rows[0].id;
+
+        // Create Details
+        for (const d of detalles) {
             await client.query(
                 `INSERT INTO detalle_resultado (id_resultado, nombre, unidad, valor)
                  VALUES ($1, $2, $3, $4)`,
-                [resultId, det.nombre, det.unidad, det.valor]
+                [resultId, d.nombre, d.unidad, d.valor]
             );
         }
+
+        // Handle Consumables (if any)
+        if (data.consumibles && Array.isArray(data.consumibles)) {
+            const { inventoryStorage } = await import('./inventory.storage.js');
+            
+            for (const item of data.consumibles) {
+                if (item.cantidad > 0) {
+                    // Consume stock (FEFO) - This updates lots
+                    const consumedLots = await inventoryStorage.consumeProduct(item.productoId, item.cantidad, userId);
+                    
+                    // Record consumption linked to result
+                    for (const lot of consumedLots) {
+                        await client.query(
+                            `INSERT INTO consumidos (id_resultado, id_lote, cantidad)
+                             VALUES ($1, $2, $3)`,
+                            [resultId, lot.id_lote, lot.cantidad]
+                        );
+                    }
+                }
+            }
+        }
+
+        // Update Exam Status in Order is tricky because normalized. 
+        // We just rely on presence of Result to know it's done.
         
-        // 3. Update Order Status if needed?
-        // If all exams in the order are done, we could set order status to 'resultados_cargados'.
-        // Check if any pending exams left
-        const pendingCheck = await client.query(
-            `SELECT count(*) as count 
-             FROM detalle_orden do_table
-             LEFT JOIN resultado r ON r.id_orden = do_table.id_orden AND r.id_examen = do_table.id_examen
-             WHERE do_table.id_orden = $1 AND r.id IS NULL`,
-             [ordenId]
+        // Check if all exams for this order are done
+        // First get all exams for order
+        const orderExamsRes = await client.query(
+            `SELECT id_examen FROM detalle_orden WHERE id_orden = $1`,
+            [ordenId]
         );
+        const orderExams = orderExamsRes.rows.map(r => r.id_examen);
+
+        // Get all results for order
+        const orderResultsRes = await client.query(
+            `SELECT id_examen FROM resultado WHERE id_orden = $1`,
+            [ordenId]
+        );
+        const doneExams = orderResultsRes.rows.map(r => r.id_examen);
         
-        if (parseInt(pendingCheck.rows[0].count) === 0) {
+        // If all exams have results, update order status
+        // (Note: inside this transaction, we just added one, so it should be visible if read committed or similar, 
+        // but easier to check logic)
+        // Set match logic
+        const allDone = orderExams.every(id => doneExams.includes(id));
+        
+        if (allDone) {
             await client.query(
-                "UPDATE orden SET estado = 'resultados_cargados' WHERE id = $1",
+                `UPDATE orden SET estado = 'resultados_cargados' WHERE id = $1`,
                 [ordenId]
             );
         } else {
              await client.query(
-                "UPDATE orden SET estado = 'procesando' WHERE id = $1",
+                `UPDATE orden SET estado = 'procesando' WHERE id = $1 AND estado = 'pendiente'`,
                 [ordenId]
             );
         }
 
         await client.query('COMMIT');
-        return { id: resultId };
+        return true;
     } catch (e) {
         await client.query('ROLLBACK');
         throw e;

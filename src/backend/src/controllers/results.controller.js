@@ -24,16 +24,16 @@ export const resultsController = {
 
   async saveResult(req, res) {
       try {
-          const { ordenId, examenId, pacienteId, detalles } = req.body;
+          const { ordenId, examenId, pacienteId, detalles, consumibles } = req.body;
           // In a real app we'd get userId from req.user
-          const userId = req.user ? req.user.id : 1; 
+          const userId = req.user ? req.user.userId : 1; 
 
-          if (!ordenId || !examenId || !detalles) {
+          if (!ordenId || !examenId || !pacienteId || !detalles) {
               return res.status(400).json({ error: 'Missing required fields' });
           }
           
           const result = await resultsStorage.saveResult({
-              ordenId, examenId, pacienteId, userId, detalles
+              ordenId, examenId, pacienteId, userId, detalles, consumibles
           });
           
           res.status(201).json(result);

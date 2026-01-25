@@ -21,7 +21,7 @@ const mockMovements = [];
 export default function Inventory() {
   const { hasPermission } = useAuth();
   const [inventory, setInventory] = useState([]);
-  const [movements] = useState(mockMovements); 
+  const [movements, setMovements] = useState([]); 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
   
@@ -87,6 +87,17 @@ export default function Inventory() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchHistory = async () => {
+      try {
+          const res = await fetch('/api/inventory/history');
+          if (!res.ok) throw new Error('Error fetching history');
+          const data = await res.json();
+          setMovements(data);
+      } catch(e) {
+          console.error(e);
+      }
   };
 
   useEffect(() => {
@@ -302,12 +313,66 @@ export default function Inventory() {
         </button>
         <button 
           className={`tab ${activeTab === 'movimientos' ? 'active' : ''}`}
-          onClick={() => setActiveTab('movimientos')}
+          onClick={() => {
+              setActiveTab('movimientos');
+              fetchHistory();
+          }}
         >
           <ClockIcon style={{ width: '18px', height: '18px', marginRight: '0.5rem', verticalAlign: 'middle' }} />
           Movimientos
         </button>
       </div>
+
+      {/* Movements Tab */}
+      {activeTab === 'movimientos' && (
+          <div className="card">
+              <div className="table-container">
+                  <table>
+                      <thead>
+                          <tr>
+                              <th>Fecha</th>
+                              <th>Producto</th>
+                              <th>Lote</th>
+                              <th>Tipo</th>
+                              <th>Cantidad</th>
+                              <th>Referencia</th>
+                              <th>Usuario</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {movements.length === 0 ? (
+                              <tr>
+                                  <td colSpan="7" className="text-center p-4">
+                                      <p className="text-muted">No hay movimientos registrados.</p>
+                                  </td>
+                              </tr>
+                          ) : (
+                              movements.map(m => (
+                                  <tr key={m.id}>
+                                      <td className="text-sm">{new Date(m.fecha).toLocaleString()}</td>
+                                      <td style={{ fontWeight: 500 }}>{m.producto}</td>
+                                      <td style={{ fontFamily: 'monospace' }}>{m.codigo_lote || '-'}</td>
+                                      <td>
+                                          <span className={`badge ${
+                                              m.tipo === 'ENTRADA' ? 'badge-success' : 
+                                              m.tipo === 'CONSUMO' ? 'badge-info' : 'badge-warning'
+                                          }`}>
+                                              {m.tipo}
+                                          </span>
+                                      </td>
+                                      <td style={{ fontWeight: 600 }}>
+                                          {m.tipo !== 'ENTRADA' ? '-' : '+'}{m.cantidad} {m.unidad}
+                                      </td>
+                                      <td className="text-sm text-muted">{m.referencia}</td>
+                                      <td className="text-sm">{m.usuario}</td>
+                                  </tr>
+                              ))
+                          )}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      )}
 
       {/* Catalog Tab */}
       {activeTab === 'catalogo' && (

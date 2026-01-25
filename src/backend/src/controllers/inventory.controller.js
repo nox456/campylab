@@ -43,7 +43,7 @@ export const inventoryController = {
           codigo_lote: lote || 'INICIAL',
           fecha_vencimiento: vencimiento || null,
           cantidad: parseInt(cantidad)
-        });
+        }, req.user ? req.user.userId : 1);
       }
 
       res.status(201).json(product);
@@ -52,7 +52,6 @@ export const inventoryController = {
       res.status(500).json({ error: 'Internal server error' });
     }
   },
-
   // Endpoint to add stock (New Lot) to existing product
   async addStock(req, res) {
     try {
@@ -64,7 +63,7 @@ export const inventoryController = {
         codigo_lote: lote,
         fecha_vencimiento: vencimiento,
         cantidad: parseInt(cantidad)
-      });
+      }, req.user ? req.user.userId : 1);
 
       res.status(201).json(newLot);
     } catch (e) {
@@ -113,14 +112,22 @@ export const inventoryController = {
         }
 
         // loteId can be null (FEFO) or a specific ID
-        const changes = await inventoryStorage.removeStock(id, parseInt(cantidad), loteId || null);
+        const changes = await inventoryStorage.removeStock(id, parseInt(cantidad), loteId || null, req.user ? req.user.userId : 1);
         
-        console.log(`Output registered for Product ${id}: ${cantidad} units. Reason: ${motivo}. Method: ${loteId ? 'Manual' : 'FEFO'}`);
-
         res.json({ message: 'Stock removed successfully', details: changes });
     } catch (e) {
         console.error(e);
         res.status(400).json({ error: e.message });
     }
+  },
+
+  async getHistory(req, res) {
+      try {
+          const history = await inventoryStorage.getHistory();
+          res.json(history);
+      } catch (e) {
+          console.error(e);
+          res.status(500).json({ error: 'Error fetching history' });
+      }
   }
 };

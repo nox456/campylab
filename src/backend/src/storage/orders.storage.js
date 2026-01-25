@@ -99,6 +99,17 @@ export const ordersStorage = {
     const ageDate = new Date(ageDifMs);
     const age = Math.abs(ageDate.getUTCFullYear() - 1970);
 
+    // Get Consumibles used in this order
+    const consumiblesQuery = `
+      SELECT p.nombre, l.codigo_lote, c.cantidad, p.unidad_medida as unidad
+      FROM consumidos c
+      JOIN resultado r ON c.id_resultado = r.id
+      JOIN lotes l ON c.id_lote = l.id
+      JOIN productos p ON l.producto_id = p.id
+      WHERE r.id_orden = $1
+    `;
+    const consumiblesResult = await client.query(consumiblesQuery, [id]);
+
     return { 
         ...order, 
         paciente: {
@@ -112,9 +123,9 @@ export const ordersStorage = {
             edad: age
         },
         exams,
-        // Mocking payments/consumables for now as tables exists but maybe not fully populated or logic slightly different
+        // Mocking payments for now
         pagos: [], 
-        consumibles: []
+        consumibles: consumiblesResult.rows
     };
   },
 

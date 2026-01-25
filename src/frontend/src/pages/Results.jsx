@@ -29,6 +29,12 @@ export default function Results() {
   const [examParams, setExamParams] = useState([]);
   const [loadingParams, setLoadingParams] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // Inventory State
+  const [consumables, setConsumables] = useState([]); // [{ productoId, nombre, cantidad, unit }]
+  const [productSearch, setProductSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [showProductSearch, setShowProductSearch] = useState(false);
 
   const canLoadResults = hasPermission('results', 'create') || hasPermission('results', 'update');
 
@@ -38,6 +44,18 @@ export default function Results() {
           return () => clearTimeout(timer);
       }
   }, [successMessage]);
+
+  // Search products for inventory
+  useEffect(() => {
+     if (productSearch.length > 2) {
+         fetch(`/api/inventory?search=${productSearch}`)
+            .then(res => res.json())
+            .then(data => setSearchResults(data))
+            .catch(console.error);
+     } else {
+         setSearchResults([]);
+     }
+  }, [productSearch]);
 
   const fetchPendingOrders = async () => {
       try {
@@ -80,6 +98,7 @@ export default function Results() {
     setSelectedOrder(order);
     setSelectedExam(exam);
     setResultValues({});
+    setConsumables([]); // Reset consumables
     setLoadingParams(true);
     
     try {
@@ -93,7 +112,6 @@ export default function Results() {
         params.forEach(p => initial[p.nombre] = '');
         setResultValues(initial);
     } catch(e) {
-        // alert("Error cargando parametros del examen"); 
         console.error(e);
         handleCloseModal();
     } finally {
@@ -106,44 +124,82 @@ export default function Results() {
     setSelectedExam(null);
     setResultValues({});
     setExamParams([]);
+    setConsumables([]);
   };
 
+  const handleAddConsumable = (product) => {
+      if (consumables.find(c => c.productoId === product.id)) return;
+      setConsumables([...consumables, {
+          productoId: product.id,
+          nombre: product.nombre,
+          cantidad: 1,
+          unit: product.unidad_medida,
+          maxStock: parseInt(product.stock_total) || 0
+      }]);
+      setProductSearch('');
+      setSearchResults([]);
+      setShowProductSearch(false);
+  };
+
+  const handleUpdateConsumableQty = (id, qty) => {
+      setConsumables(consumables.map(c => 
+          c.productoId === id ? { ...c, cantidad: parseInt(qty) || 0 } : c
+      ));
+  };
+
+  const handleRemoveConsumable = (id) => {
+      setConsumables(consumables.filter(c => c.productoId !== id));
+  };
+  
+  // Validation Check
+  const hasConsumableErrors = consumables.some(c => c.cantidad > c.maxStock || c.cantidad <= 0);
+
+  // Helper to validate results before save
   const handleSaveResults = async () => {
-    try {
-        // Construct details array
-        const detalles = examParams.map(p => ({
-            nombre: p.nombre,
-            unidad: p.unidad,
-            valor: resultValues[p.nombre]
-        }));
+      // 1. Validation is now handled by HTML form (required) and disabled button (stock)
 
-        const payload = {
-            ordenId: selectedOrder.id,
-            examenId: selectedExam.id,
-            pacienteId: selectedOrder.paciente.id,
-            detalles
-        };
-
-        const res = await fetch('/api/results', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) throw new Error('Error saving results');
-
-        await fetchPendingOrders();
-        handleCloseModal();
-        setSuccessMessage('Resultados guardados exitosamente');
-    } catch(e) {
-        console.error(e);
-    }
+      try {
+          // Construct details array
+          const detalles = examParams.map(p => ({
+              nombre: p.nombre,
+              unidad: p.unidad,
+              valor: resultValues[p.nombre]
+          }));
+  
+          const payload = {
+              ordenId: selectedOrder.id,
+              examenId: selectedExam.id,
+              pacienteId: selectedOrder.paciente.id,
+              detalles,
+              consumibles: consumables 
+          };
+  
+          const res = await fetch('/api/results', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+  
+          if (!res.ok) throw new Error('Error saving results');
+  
+          await fetchPendingOrders();
+          handleCloseModal();
+          setSuccessMessage('Resultados guardados exitosamente');
+      } catch(e) {
+          console.error(e);
+          alert('Error guardando resultados: ' + e.message);
+      }
   };
 
   const isValueOutOfRange = (value, min, max) => {
+    // If no ranges, return false
+    if (min === null || max === null || min === undefined || max === undefined) return false;
     const numValue = parseFloat(value);
     return !isNaN(numValue) && (numValue < min || numValue > max);
   };
+  
+  // Validation Check for UI only (to show red border and button enablement)
+  // We enable the button to let the User click and see the Alert msg
 
   return (
     <Layout title="Resultados">
@@ -161,7 +217,7 @@ export default function Results() {
               {successMessage}
           </div>
       )}
-
+      
       {/* Summary Cards */}
       <div style={{ 
         display: 'grid', 
@@ -169,7 +225,6 @@ export default function Results() {
         gap: '1rem',
         marginBottom: '1.5rem',
       }}>
-        {/* ... (Cards remain same) ... */}
         <div className="stat-card">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
@@ -211,7 +266,7 @@ export default function Results() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <div className="search-box" style={{ width: '280px' }}>
-            <MagnifyingGlassIcon />
+            <MagnifyingGlassIcon style={{ width: '20px', height: '20px' }} />
             <input
               type="text"
               className="form-input"
@@ -350,7 +405,7 @@ export default function Results() {
       {/* Load Results Modal */}
       {selectedOrder && selectedExam && (
         <div className="modal-overlay" onClick={handleCloseModal}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
             <div className="modal-header">
               <div>
                 <h3 className="modal-title">Cargar Resultados</h3>
@@ -362,7 +417,8 @@ export default function Results() {
                 <XMarkIcon style={{ width: '18px', height: '18px' }} />
               </button>
             </div>
-            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveResults(); }}>
+            <div className="modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
               
               {loadingParams ? (
                   <div className="text-center p-4">Cargando parametros...</div>
@@ -371,68 +427,146 @@ export default function Results() {
                   {/* Patient Info */}
                   <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
                     <strong>Paciente:</strong> {selectedOrder.paciente.nombre} | 
-                    CI: {selectedOrder.paciente.cedula} | 
-                    {selectedOrder.paciente.sexo === 'M' ? ' Masculino' : ' Femenino'}, {selectedOrder.paciente.edad} anos
+                    CI: {selectedOrder.paciente.cedula}
                   </div>
 
-                  {/* Parameters Form */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {examParams.length === 0 ? (
-                        <p className="text-muted text-center">No hay parametros configurados para este examen.</p>
-                    ) : (
-                        examParams.map((param, idx) => {
-                        const value = resultValues[param.nombre] || '';
-                        const outOfRange = value && isValueOutOfRange(value, param.min, param.max);
-                        
-                        return (
-                            <div 
-                            key={idx}
-                            style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 120px 1fr',
-                                gap: '1rem',
-                                alignItems: 'center',
-                                padding: '0.75rem',
-                                backgroundColor: outOfRange ? 'rgba(239, 68, 68, 0.1)' : 'var(--muted)',
-                                borderRadius: 'var(--radius)',
-                                border: outOfRange ? '1px solid var(--danger)' : '1px solid transparent',
-                            }}
-                            >
-                            <div>
-                                <p style={{ fontWeight: 500, fontSize: '0.875rem' }}>{param.nombre}</p>
-                                <p className="text-xs text-muted">
-                                Ref: {param.min} - {param.max} {param.unidad}
-                                </p>
-                            </div>
-                            <div>
-                                <input
-                                type="number"
-                                className="form-input"
-                                placeholder="Valor"
-                                step="any"
-                                value={value}
-                                onChange={(e) => setResultValues({
-                                    ...resultValues,
-                                    [param.nombre]: e.target.value,
-                                })}
-                                style={{
-                                    borderColor: outOfRange ? 'var(--danger)' : undefined,
-                                }}
-                                required
-                                />
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <span className="text-sm text-muted">{param.unidad}</span>
-                                {value && (
-                                <span className={`badge ${outOfRange ? 'badge-danger' : 'badge-success'}`}>
-                                    {outOfRange ? 'Fuera de rango' : 'Normal'}
-                                </span>
-                                )}
-                            </div>
-                            </div>
-                        );
-                        })
-                    )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                      {/* Left Column: Results */}
+                      <div>
+                          <h4 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Resultados</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {examParams.length === 0 ? (
+                                <p className="text-muted text-center">No hay parametros configurados.</p>
+                            ) : (
+                                examParams.map((param, idx) => {
+                                const value = resultValues[param.nombre] || '';
+                                const outOfRange = value && isValueOutOfRange(value, param.min, param.max);
+                                
+                                return (
+                                    <div 
+                                    key={idx}
+                                    style={{
+                                        border: outOfRange ? '1px solid var(--danger)' : '1px solid var(--border)',
+                                        padding: '0.5rem',
+                                        borderRadius: 'var(--radius)',
+                                        backgroundColor: outOfRange ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
+                                    }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                            <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{param.nombre}</span>
+                                            <span className="text-xs text-muted">Ref: {param.min}-{param.max} {param.unidad}</span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            className="form-input"
+                                            value={value}
+                                            placeholder="Requerido"
+                                            onChange={(e) => setResultValues({
+                                                ...resultValues,
+                                                [param.nombre]: e.target.value,
+                                            })}
+                                            step="any"
+                                            style={{ width: '100%' }}
+                                            required
+                                        />
+                                    </div>
+                                );
+                                })
+                            )}
+                          </div>
+                      </div>
+
+                      {/* Right Column: Inventory */}
+                      <div style={{ paddingLeft: '2rem', borderLeft: '1px solid var(--border)' }}>
+                          <h4 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Material Utilizado</h4>
+                          
+                          {/* Product Search */}
+                          <div style={{ position: 'relative', marginBottom: '1rem' }}>
+                              <input 
+                                  type="text" 
+                                  className="form-input" 
+                                  placeholder="Buscar material (ej. Tubo, Alcohol)..."
+                                  value={productSearch}
+                                  onChange={(e) => setProductSearch(e.target.value)}
+                                  onFocus={() => setShowProductSearch(true)}
+                              />
+                              {showProductSearch && searchResults.length > 0 && (
+                                  <div style={{
+                                      position: 'absolute',
+                                      top: '100%',
+                                      left: 0,
+                                      right: 0,
+                                      backgroundColor: 'white',
+                                      border: '1px solid var(--border)',
+                                      borderRadius: 'var(--radius)',
+                                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                      zIndex: 10,
+                                      maxHeight: '200px',
+                                      overflowY: 'auto'
+                                  }}>
+                                      {searchResults.map(p => (
+                                          <div 
+                                              key={p.id}
+                                              style={{ padding: '0.5rem', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
+                                              className="hover:bg-gray-100"
+                                              onClick={() => handleAddConsumable(p)}
+                                          >
+                                              <div style={{ fontWeight: 500 }}>{p.nombre}</div>
+                                              <div className="text-xs text-muted">
+                                                  Stock: {p.stock_total} {p.unidad_medida}
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                          </div>
+
+                          {/* Selected Consumables List */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              {consumables.length === 0 && (
+                                  <p className="text-xs text-muted">No se han agregado materiales.</p>
+                              )}
+                              {consumables.map(item => {
+                                  const isStockError = item.cantidad > item.maxStock;
+                                  return (
+                                  <div key={item.productoId} style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'space-between',
+                                      backgroundColor: isStockError ? 'rgba(239, 68, 68, 0.1)' : 'var(--muted)',
+                                      padding: '0.5rem',
+                                      borderRadius: 'var(--radius)',
+                                      border: isStockError ? '1px solid var(--danger)' : '1px solid transparent'
+                                  }}>
+                                      <div>
+                                          <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{item.nombre}</div>
+                                          <div className="text-xs text-muted">Max: {item.maxStock} {item.unit}</div>
+                                          {isStockError && <div className="text-xs text-danger">Stock insuficiente</div>}
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                          <input 
+                                              type="number" 
+                                              style={{ width: '60px', padding: '0.25rem' }}
+                                              className="form-input"
+                                              value={item.cantidad}
+                                              min="1"
+                                              max={item.maxStock}
+                                              onChange={(e) => handleUpdateConsumableQty(item.productoId, e.target.value)}
+                                          />
+                                          <button 
+                                              type="button"
+                                              className="btn btn-sm btn-outline text-danger"
+                                              onClick={() => handleRemoveConsumable(item.productoId)}
+                                              style={{ padding: '0.25rem' }}
+                                          >
+                                              <XMarkIcon style={{ width: '14px', height: '14px' }} />
+                                          </button>
+                                      </div>
+                                  </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
                   </div>
                 
                   {/* Digital Signature Notice */}
@@ -442,19 +576,30 @@ export default function Results() {
                 </>
               )}
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={handleCloseModal}>
+            <div className="modal-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1rem' }}>
+              {hasConsumableErrors && (
+                  <div className="text-sm text-danger" style={{ fontWeight: 500 }}>
+                      ⚠ Stock insuficiente en materiales
+                  </div>
+              )}
+              <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                 Cancelar
               </button>
               <button 
+                type="submit"
                 className="btn btn-primary"
-                onClick={handleSaveResults}
-                disabled={loadingParams || examParams.length === 0}
+                disabled={loadingParams || examParams.length === 0 || hasConsumableErrors}
+                style={{
+                    backgroundColor: hasConsumableErrors ? '#94a3b8' : undefined,
+                    borderColor: hasConsumableErrors ? '#94a3b8' : undefined,
+                    cursor: hasConsumableErrors ? 'not-allowed' : undefined
+                }}
               >
                 <CheckIcon style={{ width: '18px', height: '18px' }} />
                 Guardar y Validar
               </button>
             </div>
+            </form>
           </div>
         </div>
       )}

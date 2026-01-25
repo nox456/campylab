@@ -72,8 +72,9 @@ export default function Orders() {
   });
 
   const filteredPatients = patients.filter(p =>
-    p.cedula.toString().includes(patientSearch) ||
-    p.nombre.toLowerCase().includes(patientSearch.toLowerCase())
+    (p.activo !== false) && // Only active patients
+    (p.cedula.toString().includes(patientSearch) ||
+    p.nombre.toLowerCase().includes(patientSearch.toLowerCase()))
   );
 
   const getStatusBadge = (status) => {

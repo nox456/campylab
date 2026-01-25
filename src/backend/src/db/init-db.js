@@ -156,8 +156,21 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS consumidos (
         id SERIAL PRIMARY KEY,
         id_resultado INTEGER NOT NULL REFERENCES resultado(id),
-        id_consumible INTEGER NOT NULL REFERENCES productos(id),
+        id_lote INTEGER NOT NULL REFERENCES lotes(id),
         cantidad INTEGER NOT NULL
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS movimientos_inventario (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id),
+        lote_id INTEGER REFERENCES lotes(id),
+        tipo VARCHAR(50) NOT NULL,
+        cantidad INTEGER NOT NULL,
+        fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        referencia VARCHAR(255),
+        usuario_id INTEGER REFERENCES usuarios(id)
       );
     `);
 

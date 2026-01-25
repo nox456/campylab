@@ -18,7 +18,6 @@ import {
 const statusSteps = [
   { key: 'creado', label: 'Creado' },
   { key: 'resultados_cargados', label: 'Resultados' },
-  { key: 'inventario_descontado', label: 'Inventario' },
   { key: 'pagado', label: 'Pagado' },
   { key: 'entregado', label: 'Entregado' },
 ];
@@ -219,11 +218,6 @@ export default function OrderDetail({ orderId }) {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ fontWeight: 600 }}>Examenes y Resultados</h3>
-              {canLoadResults && (order.estado === 'creado' || order.estado === 'pendiente' || order.estado === 'procesando') && (
-                <Link to="/resultados" className="btn btn-primary btn-sm">
-                  Cargar Resultados
-                </Link>
-              )}
             </div>
 
             {order.exams && order.exams.map(examen => (
@@ -285,14 +279,38 @@ export default function OrderDetail({ orderId }) {
         {activeTab === 'inventario' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ fontWeight: 600 }}>Consumibles Utilizados</h3>
-              {canManageInventory && order.estado === 'resultados_cargados' && (
-                <button className="btn btn-primary btn-sm" onClick={handleDeductInventory}>
-                  Registrar Gastos
-                </button>
-              )}
+              <h3 style={{ fontWeight: 600 }}>Materiales Utilizados</h3>
             </div>
-            <p className="text-muted">No hay consumibles registrados para esta orden (Funcionalidad pendiente).</p>
+            
+            {order.consumibles && order.consumibles.length > 0 ? (
+                <div className="table-container">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Lote</th>
+                        <th>Cantidad</th>
+                        <th>Unidad</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {order.consumibles.map((item, idx) => (
+                        <tr key={idx}>
+                            <td style={{ fontWeight: 500 }}>{item.nombre}</td>
+                            <td>{item.codigo_lote}</td>
+                            <td style={{ fontWeight: 600 }}>{item.cantidad}</td>
+                            <td>{item.unidad}</td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+                </div>
+            ) : (
+                <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'var(--muted)', borderRadius: 'var(--radius)' }}>
+                    <ArchiveBoxIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
+                    <p className="text-muted">No se registraron materiales consumidos para esta orden.</p>
+                </div>
+            )}
           </div>
         )}
 

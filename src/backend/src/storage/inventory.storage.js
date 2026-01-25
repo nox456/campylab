@@ -45,7 +45,7 @@ export const inventoryStorage = {
   },
 
   // Add a Lot to a Product (Entrada)
-  async addLot(lot) {
+  async addLot(lot, userId = 1) {
     const { producto_id, codigo_lote, fecha_vencimiento, cantidad, costo_unitario } = lot;
     const result = await client.query(
       `INSERT INTO lotes (producto_id, codigo_lote, fecha_vencimiento, cantidad_inicial, cantidad_actual, costo_unitario)
@@ -53,7 +53,16 @@ export const inventoryStorage = {
        RETURNING *`,
       [producto_id, codigo_lote, fecha_vencimiento, cantidad, costo_unitario || 0]
     );
-    return result.rows[0];
+    const newLot = result.rows[0];
+
+    // Log Movement
+    await client.query(
+        `INSERT INTO movimientos_inventario (producto_id, lote_id, tipo, cantidad, referencia, usuario_id)
+         VALUES ($1, $2, 'ENTRADA', $3, 'Entrada de lote ' || $4, $5)`,
+        [producto_id, newLot.id, cantidad, codigo_lote, userId]
+    );
+
+    return newLot;
   },
 
   // Update Product Metadata
@@ -74,8 +83,55 @@ export const inventoryStorage = {
      return result.rows[0];
   },
 
-  // FEFO Strategy or Specific Lot Removal
-  async removeStock(productId, quantity, lotId = null) {
+  // Consume product using FEFO (First Expired First Out)
+  async consumeProduct(productId, quantity, userId = 1) {
+      // 1. Find available lots ordered by expiration date (FEFO)
+      const query = `
+        SELECT * FROM lotes 
+        WHERE producto_id = $1 AND cantidad_actual > 0 
+        ORDER BY fecha_vencimiento ASC NULLS LAST, fecha_entrada ASC
+      `;
+      const result = await client.query(query, [productId]);
+      const lots = result.rows;
+
+      const totalAvailable = lots.reduce((acc, lot) => acc + lot.cantidad_actual, 0);
+      if (totalAvailable < quantity) {
+          throw new Error(`Stock insuficiente para el producto ${productId}. Disponible: ${totalAvailable}, Requerido: ${quantity}`);
+      }
+
+      let remaining = quantity;
+      const consumedLots = [];
+
+      for (const lot of lots) {
+          if (remaining <= 0) break;
+
+          const toTake = Math.min(remaining, lot.cantidad_actual);
+          
+          await client.query(
+              `UPDATE lotes SET cantidad_actual = cantidad_actual - $1 WHERE id = $2`,
+              [toTake, lot.id]
+          );
+
+          // Log Movement
+          await client.query(
+              `INSERT INTO movimientos_inventario (producto_id, lote_id, tipo, cantidad, referencia, usuario_id)
+               VALUES ($1, $2, 'CONSUMO', $3, 'Consumo en resultados', $4)`,
+              [productId, lot.id, toTake, userId]
+          );
+
+          consumedLots.push({
+              id_lote: lot.id,
+              cantidad: toTake
+          });
+
+          remaining -= toTake;
+      }
+
+      return consumedLots;
+  },
+
+  // FEFO Strategy or Specific Lot Removal (Legacy/Manual usage)
+  async removeStock(productId, quantity, lotId = null, userId = 1) {
     let query = '';
     let params = [];
 
@@ -127,8 +183,38 @@ export const inventoryStorage = {
             'UPDATE lotes SET cantidad_actual = $1 WHERE id = $2',
             [update.newQuantity, update.id]
         );
+
+        // Log Movement
+        await client.query(
+            `INSERT INTO movimientos_inventario (producto_id, lote_id, tipo, cantidad, referencia, usuario_id)
+             VALUES ($1, $2, 'SALIDA', $3, 'Salida manual', $4)`,
+            [productId, update.id, update.deducted, userId]
+        );
     }
 
     return updates;
+  },
+  // Get History
+  async getHistory() {
+      const query = `
+        SELECT 
+            m.id, 
+            m.tipo, 
+            m.cantidad, 
+            m.fecha, 
+            m.referencia,
+            p.nombre as producto,
+            p.unidad_medida as unidad,
+            l.codigo_lote,
+            u.nombre as usuario
+        FROM movimientos_inventario m
+        JOIN productos p ON m.producto_id = p.id
+        LEFT JOIN lotes l ON m.lote_id = l.id
+        LEFT JOIN usuarios u ON m.usuario_id = u.id
+        ORDER BY m.fecha DESC
+        LIMIT 100
+      `;
+      const result = await client.query(query);
+      return result.rows;
   }
 };
