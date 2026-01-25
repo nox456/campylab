@@ -13,6 +13,7 @@ import OrderDetail from '../pages/OrderDetail';
 import Payments from '../pages/Payments';
 import Results from '../pages/Results';
 import Inventory from '../pages/Inventory';
+import Exams from '../pages/Exams';
 
 export default function Router() {
   const { user, loading } = useAuth();
@@ -93,6 +94,10 @@ export default function Router() {
   
   if (currentPath === '/inventario') {
     return <Inventory />;
+  }
+  
+  if (currentPath === '/examenes') {
+    return <Exams />;
   }
 
   // 404

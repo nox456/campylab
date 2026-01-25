@@ -13,7 +13,8 @@ import {
   Bars3Icon,
   XMarkIcon,
   ArrowRightOnRectangleIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 
 const menuItems = [
@@ -23,6 +24,7 @@ const menuItems = [
   { path: '/pagos', label: 'Pagos', icon: CreditCardIcon, module: 'payments' },
   { path: '/resultados', label: 'Resultados', icon: BeakerIcon, module: 'results' },
   { path: '/inventario', label: 'Inventario', icon: ArchiveBoxIcon, module: 'inventory' },
+  { path: '/examenes', label: 'Examenes', icon: DocumentTextIcon, module: 'results' },
 ];
 
 export default function Layout({ children, title }) {

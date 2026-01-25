@@ -16,7 +16,8 @@ async function initDB() {
         telefono VARCHAR(15) NOT NULL,
         direccion VARCHAR(255) NOT NULL,
         sexo VARCHAR(1) NOT NULL,
-        fecha_nacimiento DATE NOT NULL
+        fecha_nacimiento DATE NOT NULL,
+        activo BOOLEAN NOT NULL DEFAULT TRUE
       );
     `);
 
@@ -62,13 +63,30 @@ async function initDB() {
       );
     `);
 
+    await client.query(`DROP TABLE IF EXISTS inventario CASCADE;`);
+    await client.query(`DROP TABLE IF EXISTS consumidos CASCADE;`); // Depends on inventory
+
     await client.query(`
-      CREATE TABLE IF NOT EXISTS consumible (
+      CREATE TABLE IF NOT EXISTS productos (
         id SERIAL PRIMARY KEY,
         nombre VARCHAR(100) NOT NULL,
-        descripcion VARCHAR(255) NOT NULL,
-        unidad VARCHAR(50) NOT NULL,
-        stock INTEGER NOT NULL DEFAULT 0
+        codigo_barras VARCHAR(100) UNIQUE,
+        unidad_medida VARCHAR(50) NOT NULL,
+        descripcion VARCHAR(255),
+        stock_minimo INTEGER DEFAULT 0
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lotes (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        codigo_lote VARCHAR(100),
+        fecha_entrada DATE NOT NULL DEFAULT CURRENT_DATE,
+        fecha_vencimiento DATE,
+        cantidad_inicial INTEGER NOT NULL,
+        cantidad_actual INTEGER NOT NULL,
+        costo_unitario DECIMAL(10, 2)
       );
     `);
 
@@ -137,7 +155,7 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS consumidos (
         id SERIAL PRIMARY KEY,
         id_resultado INTEGER NOT NULL REFERENCES resultado(id),
-        id_consumible INTEGER NOT NULL REFERENCES consumible(id),
+        id_consumible INTEGER NOT NULL REFERENCES inventario(id),
         cantidad INTEGER NOT NULL
       );
     `);

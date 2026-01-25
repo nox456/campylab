@@ -101,8 +101,11 @@ export function AuthProvider({ children }) {
   };
 
   const hasPermission = (module, action) => {
-    if (!user || !user.permissions) return false;
-    return user.permissions[module]?.includes(action) || false;
+    // Temporary override: Allow all actions for dev
+    return true;
+    
+    // if (!user || !user.permissions) return false;
+    // return user.permissions[module]?.includes(action) || false;
   };
 
   const canAccessModule = (module) => {

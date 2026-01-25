@@ -85,7 +85,9 @@ export const patientsController = {
         cedula,
         email: email || null,
         telefono,
-        direccion
+        direccion,
+        sexo,
+        fecha_nacimiento
       });
 
       res.json(updatedPatient);
@@ -95,7 +97,7 @@ export const patientsController = {
     }
   },
 
-  async delete(req, res) {
+  async toggleStatus(req, res) {
     try {
       const { id } = req.params;
       
@@ -104,10 +106,10 @@ export const patientsController = {
         return res.status(404).json({ error: 'Patient not found' });
       }
 
-      await patientsStorage.delete(id);
-      res.json({ message: 'Patient deleted successfully' });
+      const updatedPatient = await patientsStorage.toggleStatus(id);
+      res.json(updatedPatient);
     } catch (error) {
-      console.error('Error deleting patient:', error);
+      console.error('Error toggling patient status:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

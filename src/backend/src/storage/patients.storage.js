@@ -39,9 +39,9 @@ export const patientsStorage = {
     return result.rows[0];
   },
 
-  async delete(id) {
+  async toggleStatus(id) {
     const result = await client.query(
-      'DELETE FROM pacientes WHERE id = $1 RETURNING *',
+      'UPDATE pacientes SET activo = NOT activo WHERE id = $1 RETURNING *',
       [id]
     );
     return result.rows[0];

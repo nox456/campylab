@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -13,50 +13,34 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   ClockIcon,
-  FunnelIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 
-// Mock inventory data
-const initialInventory = [
-  { id: 1, nombre: 'Tubos EDTA', codigo: 'TUB-001', cantidad: 15, minimo: 50, unidad: 'unid', proveedor: 'Medical Supplies', lote: 'L2024-001', vencimiento: '2026-06-15' },
-  { id: 2, nombre: 'Tubos Tapa Roja', codigo: 'TUB-002', cantidad: 120, minimo: 50, unidad: 'unid', proveedor: 'Medical Supplies', lote: 'L2024-002', vencimiento: '2026-08-20' },
-  { id: 3, nombre: 'Reactivo Glucosa', codigo: 'REA-001', cantidad: 8, minimo: 20, unidad: 'mL', proveedor: 'BioReagents Inc', lote: 'R2024-015', vencimiento: '2025-12-01' },
-  { id: 4, nombre: 'Reactivo Colesterol', codigo: 'REA-002', cantidad: 45, minimo: 30, unidad: 'mL', proveedor: 'BioReagents Inc', lote: 'R2024-016', vencimiento: '2025-11-15' },
-  { id: 5, nombre: 'Lancetas', codigo: 'LAN-001', cantidad: 25, minimo: 100, unidad: 'unid', proveedor: 'Medical Supplies', lote: 'L2024-030', vencimiento: '2027-01-01' },
-  { id: 6, nombre: 'Guantes Latex (M)', codigo: 'GUA-001', cantidad: 200, minimo: 100, unidad: 'par', proveedor: 'SafetyFirst', lote: 'G2024-055', vencimiento: '2026-03-01' },
-  { id: 7, nombre: 'Alcohol Isopropilico', codigo: 'ALC-001', cantidad: 5, minimo: 10, unidad: 'L', proveedor: 'ChemLab', lote: 'A2024-012', vencimiento: '2025-09-30' },
-  { id: 8, nombre: 'Algodones', codigo: 'ALG-001', cantidad: 500, minimo: 200, unidad: 'g', proveedor: 'Medical Supplies', lote: 'L2024-100', vencimiento: '2027-06-01' },
-  { id: 9, nombre: 'Reactivo Urea', codigo: 'REA-003', cantidad: 60, minimo: 30, unidad: 'mL', proveedor: 'BioReagents Inc', lote: 'R2024-020', vencimiento: '2025-10-15' },
-  { id: 10, nombre: 'Reactivo Creatinina', codigo: 'REA-004', cantidad: 55, minimo: 30, unidad: 'mL', proveedor: 'BioReagents Inc', lote: 'R2024-021', vencimiento: '2025-10-15' },
-];
-
-const mockMovements = [
-  { id: 1, item: 'Tubos EDTA', tipo: 'salida', cantidad: 5, fecha: '2025-01-18 10:30', usuario: 'Ana Bioanalista', motivo: 'Orden #0001' },
-  { id: 2, item: 'Reactivo Glucosa', tipo: 'salida', cantidad: 2, fecha: '2025-01-18 09:15', usuario: 'Ana Bioanalista', motivo: 'Orden #0003' },
-  { id: 3, item: 'Guantes Latex (M)', tipo: 'entrada', cantidad: 100, fecha: '2025-01-17 14:00', usuario: 'Admin Usuario', motivo: 'Compra' },
-  { id: 4, item: 'Lancetas', tipo: 'salida', cantidad: 10, fecha: '2025-01-17 11:30', usuario: 'Ana Bioanalista', motivo: 'Orden #0004' },
-  { id: 5, item: 'Alcohol Isopropilico', tipo: 'entrada', cantidad: 3, fecha: '2025-01-16 16:00', usuario: 'Admin Usuario', motivo: 'Compra' },
-];
+const mockMovements = [];
 
 export default function Inventory() {
   const { hasPermission } = useAuth();
-  const [inventory, setInventory] = useState(initialInventory);
-  const [movements] = useState(mockMovements);
+  const [inventory, setInventory] = useState([]);
+  const [movements] = useState(mockMovements); 
   const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [filterLowStock, setFilterLowStock] = useState(false);
+  
+  // Modal State
   const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState('add'); // 'add', 'edit', 'input', 'output'
+  const [modalMode, setModalMode] = useState('add'); // 'add' (Product), 'edit' (Product), 'input' (Stock/Lot), 'output' (Usage)
   const [selectedItem, setSelectedItem] = useState(null);
   const [activeTab, setActiveTab] = useState('catalogo');
-  
+  const [loading, setLoading] = useState(false);
+  const [expandedRow, setExpandedRow] = useState(null); // To show lots details
+
   const [formData, setFormData] = useState({
     nombre: '',
-    codigo: '',
-    cantidad: '',
+    codigo: '', 
     minimo: '',
     unidad: '',
-    proveedor: '',
+    proveedor: '', // Mapped to description
+    // Lot/Stock specific
+    cantidad: '',
     lote: '',
     vencimiento: '',
   });
@@ -65,6 +49,49 @@ export default function Inventory() {
     cantidad: '',
     motivo: '',
   });
+
+  // Helper safe date formatter
+  const formatDate = (dateValue) => {
+    if (!dateValue) return '—';
+    try {
+      const d = new Date(dateValue);
+      if (isNaN(d.getTime())) return '—'; 
+      return d.toISOString().split('T')[0];
+    } catch (e) {
+      return '—';
+    }
+  };
+
+  const fetchInventory = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/inventory');
+      if (!res.ok) throw new Error('Failed to fetch inventory');
+      const data = await res.json();
+      
+      // Data now comes as Products with aggregated stock
+      const mapped = data.map(item => ({
+        id: item.id,
+        nombre: item.nombre,
+        codigo: item.codigo_barras || '—', 
+        cantidad: parseInt(item.stock_total) || 0,
+        minimo: item.stock_minimo,
+        unidad: item.unidad_medida,
+        proveedor: item.descripcion, 
+        lotes: item.lotes_activos || [] // Add lots array for details view
+      }));
+      setInventory(mapped);
+    } catch (err) {
+      console.error(err);
+      // setError('Error al cargar inventario');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInventory();
+  }, []);
 
   const canCreate = hasPermission('inventory', 'create');
   const canUpdate = hasPermission('inventory', 'update');
@@ -79,26 +106,37 @@ export default function Inventory() {
 
   const lowStockCount = inventory.filter(i => i.cantidad < i.minimo).length;
   const totalItems = inventory.length;
-  const totalValue = inventory.reduce((acc, i) => acc + i.cantidad, 0);
 
   const handleOpenModal = (mode, item = null) => {
     setModalMode(mode);
     setSelectedItem(item);
-    if (mode === 'edit' && item) {
-      setFormData({ ...item });
-    } else if (mode === 'add') {
-      setFormData({
+    
+    // Clear form
+    setFormData({
         nombre: '',
         codigo: '',
-        cantidad: '',
         minimo: '',
         unidad: '',
         proveedor: '',
+        cantidad: '',
         lote: '',
-        vencimiento: '',
+        vencimiento: ''
+    });
+
+    if (mode === 'edit' && item) {
+      setFormData({
+         nombre: item.nombre,
+         codigo: item.codigo === '—' ? '' : item.codigo,
+         minimo: item.minimo,
+         unidad: item.unidad,
+         proveedor: item.proveedor,
+         cantidad: '', // Edit product doesn't change stock
+         lote: '',
+         vencimiento: ''
       });
     }
-    setMovementData({ cantidad: '', motivo: '' });
+    
+    setMovementData({ cantidad: '', motivo: '', loteId: '' });
     setShowModal(true);
   };
 
@@ -106,46 +144,106 @@ export default function Inventory() {
     setShowModal(false);
     setSelectedItem(null);
     setModalMode('add');
+    setExpandedRow(null);
   };
 
-  const handleSaveItem = () => {
-    if (modalMode === 'add') {
-      const newItem = {
-        ...formData,
-        id: inventory.length + 1,
-        cantidad: parseInt(formData.cantidad) || 0,
+  const handleSaveProduct = async () => {
+    try {
+      const url = modalMode === 'edit' ? `/api/inventory/${selectedItem.id}` : '/api/inventory';
+      const method = modalMode === 'edit' ? 'PUT' : 'POST';
+      
+      // Payload matches backend expectation for Product
+      const payload = {
+        nombre: formData.nombre,
+        codigo: formData.codigo,
+        descripcion: formData.proveedor, 
+        unidad: formData.unidad,
         minimo: parseInt(formData.minimo) || 0,
+        // Only for Creation: Initial stock
+        cantidad: modalMode === 'add' ? (parseInt(formData.cantidad) || 0) : undefined,
+        lote: modalMode === 'add' ? formData.lote : undefined,
+        vencimiento: modalMode === 'add' ? (formData.vencimiento || null) : undefined,
       };
-      setInventory([...inventory, newItem]);
-    } else if (modalMode === 'edit') {
-      setInventory(inventory.map(i => 
-        i.id === selectedItem.id ? { ...formData, cantidad: parseInt(formData.cantidad), minimo: parseInt(formData.minimo) } : i
-      ));
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error('Error saving item');
+      
+      await fetchInventory();
+      handleCloseModal();
+    } catch (e) {
+      alert(e.message);
     }
-    handleCloseModal();
   };
 
-  const handleMovement = () => {
-    const cantidad = parseInt(movementData.cantidad);
-    if (!cantidad || cantidad <= 0) return;
+  const handleAddStock = async () => {
+    if (!selectedItem) return;
+    try {
+        const payload = {
+            lote: formData.lote,
+            vencimiento: formData.vencimiento,
+            cantidad: parseInt(formData.cantidad)
+        };
+        
+        const res = await fetch(`/api/inventory/${selectedItem.id}/stock`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-    setInventory(inventory.map(i => {
-      if (i.id === selectedItem.id) {
-        const newCantidad = modalMode === 'input' 
-          ? i.cantidad + cantidad 
-          : Math.max(0, i.cantidad - cantidad);
-        return { ...i, cantidad: newCantidad };
-      }
-      return i;
-    }));
-    handleCloseModal();
+        if (!res.ok) throw new Error('Error al agregar stock');
+        await fetchInventory();
+        handleCloseModal();
+    } catch(e) {
+        alert(e.message);
+    }
+  }
+
+  const handleOutput = async () => {
+    if (!selectedItem) return;
+    try {
+        const payload = {
+            cantidad: parseInt(movementData.cantidad),
+            motivo: movementData.motivo,
+            loteId: movementData.loteId || null // Optional manual lot selection
+        };
+
+        const res = await fetch(`/api/inventory/${selectedItem.id}/output`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || 'Error al registrar salida');
+        }
+        
+        await fetchInventory();
+        handleCloseModal();
+    } catch(e) {
+        alert(e.message);
+    }
   };
 
-  const isExpiringSoon = (vencimiento) => {
+  const hasExpiredLots = (lotes) => {
+    if (!lotes || lotes.length === 0) return false;
     const today = new Date();
-    const expDate = new Date(vencimiento);
-    const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
-    return diffDays <= 90;
+    today.setHours(0,0,0,0);
+    return lotes.some(l => {
+        if (!l.fecha_vencimiento || l.cantidad_actual <= 0) return false;
+        const exp = new Date(l.fecha_vencimiento);
+        return exp < today; 
+    });
+  };
+
+  const toggleRow = (id) => {
+    if (expandedRow === id) setExpandedRow(null);
+    else setExpandedRow(id);
   };
 
   return (
@@ -161,7 +259,7 @@ export default function Inventory() {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <p className="stat-card-value">{totalItems}</p>
-              <p className="stat-card-label">Items en Catalogo</p>
+              <p className="stat-card-label">Productos</p>
             </div>
             <div className="stat-card-icon" style={{ backgroundColor: 'rgba(8, 145, 178, 0.1)' }}>
               <ArchiveBoxIcon style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
@@ -187,7 +285,7 @@ export default function Inventory() {
           <div className="stat-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={() => handleOpenModal('add')}>
             <div style={{ textAlign: 'center' }}>
               <PlusIcon style={{ width: '32px', height: '32px', color: 'var(--primary)', margin: '0 auto 0.5rem' }} />
-              <p className="stat-card-label">Agregar Material</p>
+              <p className="stat-card-label">Nuevo Producto</p>
             </div>
           </div>
         )}
@@ -222,7 +320,7 @@ export default function Inventory() {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Buscar por nombre o codigo..."
+                  placeholder="Buscar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -243,13 +341,12 @@ export default function Inventory() {
               <table>
                 <thead>
                   <tr>
+                    <th></th>
                     <th>Codigo</th>
                     <th>Nombre</th>
-                    <th>Stock</th>
+                    <th>Stock Total</th>
                     <th>Minimo</th>
                     <th>Unidad</th>
-                    <th>Lote</th>
-                    <th>Vencimiento</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
@@ -257,38 +354,47 @@ export default function Inventory() {
                 <tbody>
                   {filteredInventory.length === 0 ? (
                     <tr>
-                      <td colSpan="9" style={{ textAlign: 'center', padding: '2rem' }}>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
                         <ArchiveBoxIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
-                        <p className="text-muted">No se encontraron items</p>
+                        <p className="text-muted">No hay productos registrados.</p>
                       </td>
                     </tr>
                   ) : (
                     filteredInventory.map(item => {
                       const isLowStock = item.cantidad < item.minimo;
-                      const expiringSoon = isExpiringSoon(item.vencimiento);
+                      const hasLots = item.lotes && item.lotes.length > 0;
+                      const expiredWarning = hasExpiredLots(item.lotes);
+
                       return (
-                        <tr key={item.id}>
+                        <>
+                        <tr key={item.id} style={{ backgroundColor: expandedRow === item.id ? 'var(--muted)' : 'inherit' }}>
+                          <td>
+                            {hasLots && (
+                                <button onClick={() => toggleRow(item.id)} className="btn btn-sm" style={{ padding: '0.25rem' }}>
+                                    <ChevronDownIcon style={{ width: '14px', height: '14px', transform: expandedRow === item.id ? 'rotate(180deg)' : 'rotate(0)' }} />
+                                </button>
+                            )}
+                          </td>
                           <td style={{ fontWeight: 500, fontFamily: 'monospace' }}>{item.codigo}</td>
-                          <td>{item.nombre}</td>
+                          <td>
+                            {item.nombre}
+                            {expiredWarning && (
+                                <span title="Lotes vencidos detectados" style={{ marginLeft: '0.5rem', color: 'var(--danger)', verticalAlign: 'middle' }}>
+                                    <ExclamationTriangleIcon style={{ width: '16px', height: '16px', display: 'inline' }} />
+                                </span>
+                            )}
+                          </td>
                           <td>
                             <span style={{ 
                               fontWeight: 600, 
-                              color: isLowStock ? 'var(--danger)' : 'var(--foreground)' 
+                              color: isLowStock ? 'var(--danger)' : 'var(--foreground)',
+                              fontSize: '1.1em'
                             }}>
                               {item.cantidad}
                             </span>
                           </td>
                           <td className="text-muted">{item.minimo}</td>
                           <td>{item.unidad}</td>
-                          <td className="text-sm">{item.lote}</td>
-                          <td>
-                            <span className={expiringSoon ? 'text-sm' : 'text-sm'} style={{ color: expiringSoon ? 'var(--warning)' : undefined }}>
-                              {item.vencimiento}
-                              {expiringSoon && (
-                                <ExclamationTriangleIcon style={{ width: '14px', height: '14px', marginLeft: '0.25rem', verticalAlign: 'middle' }} />
-                              )}
-                            </span>
-                          </td>
                           <td>
                             {isLowStock ? (
                               <span className="badge badge-danger">Bajo Stock</span>
@@ -302,9 +408,10 @@ export default function Inventory() {
                                 <button 
                                   className="btn btn-sm btn-success"
                                   onClick={() => handleOpenModal('input', item)}
-                                  title="Entrada"
+                                  title="Agregar Lote (Entrada)"
                                 >
-                                  <ArrowUpIcon style={{ width: '14px', height: '14px' }} />
+                                  <PlusIcon style={{ width: '14px', height: '14px', marginRight: '4px' }} />
+                                  Lote
                                 </button>
                               )}
                               {canUpdate && (
@@ -312,7 +419,7 @@ export default function Inventory() {
                                   <button 
                                     className="btn btn-sm btn-warning"
                                     onClick={() => handleOpenModal('output', item)}
-                                    title="Salida"
+                                    title="Salida General"
                                     style={{ backgroundColor: 'var(--warning)', color: 'white' }}
                                   >
                                     <ArrowDownIcon style={{ width: '14px', height: '14px' }} />
@@ -320,7 +427,7 @@ export default function Inventory() {
                                   <button 
                                     className="btn btn-sm btn-outline"
                                     onClick={() => handleOpenModal('edit', item)}
-                                    title="Editar"
+                                    title="Editar Producto"
                                   >
                                     <PencilIcon style={{ width: '14px', height: '14px' }} />
                                   </button>
@@ -329,6 +436,41 @@ export default function Inventory() {
                             </div>
                           </td>
                         </tr>
+                        {/* Expandable Row for Lots */}
+                        {expandedRow === item.id && hasLots && (
+                            <tr>
+                                <td colSpan="8" style={{ padding: 0 }}>
+                                    <div style={{ backgroundColor: 'rgba(0,0,0,0.02)', padding: '1rem' }}>
+                                        <table style={{ width: '100%', fontSize: '0.9em' }}>
+                                            <thead>
+                                                <tr>
+                                                    <th style={{ paddingLeft: '2rem' }}>Lote</th>
+                                                    <th>Vencimiento</th>
+                                                    <th>Stock Lote</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {item.lotes.map(lot => (
+                                                    <tr key={lot.id}>
+                                                        <td style={{ paddingLeft: '2rem', fontFamily: 'monospace' }}>{lot.codigo_lote}</td>
+                                                        <td>
+                                                            {formatDate(lot.fecha_vencimiento)}
+                                                            {new Date(lot.fecha_vencimiento) < new Date().setHours(0,0,0,0) && lot.cantidad_actual > 0 && (
+                                                                <span style={{ color: 'var(--danger)', fontWeight: 'bold', marginLeft: '0.5rem', fontSize: '0.8em' }}>
+                                                                    (LOTE VENCIDO)
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td style={{ fontWeight: 600 }}>{lot.cantidad_actual}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
+                        </>
                       );
                     })
                   )}
@@ -339,89 +481,33 @@ export default function Inventory() {
         </>
       )}
 
-      {/* Movements Tab */}
-      {activeTab === 'movimientos' && (
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">Historial de Movimientos</h3>
-          </div>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Fecha/Hora</th>
-                  <th>Item</th>
-                  <th>Tipo</th>
-                  <th>Cantidad</th>
-                  <th>Motivo</th>
-                  <th>Usuario</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movements.map(mov => (
-                  <tr key={mov.id}>
-                    <td>
-                      <div>
-                        <p className="text-sm">{mov.fecha.split(' ')[0]}</p>
-                        <p className="text-xs text-muted">{mov.fecha.split(' ')[1]}</p>
-                      </div>
-                    </td>
-                    <td style={{ fontWeight: 500 }}>{mov.item}</td>
-                    <td>
-                      <span 
-                        className={`badge ${mov.tipo === 'entrada' ? 'badge-success' : 'badge-warning'}`}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                      >
-                        {mov.tipo === 'entrada' ? (
-                          <ArrowUpIcon style={{ width: '12px', height: '12px' }} />
-                        ) : (
-                          <ArrowDownIcon style={{ width: '12px', height: '12px' }} />
-                        )}
-                        {mov.tipo === 'entrada' ? 'Entrada' : 'Salida'}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>
-                      <span style={{ color: mov.tipo === 'entrada' ? 'var(--success)' : 'var(--warning)' }}>
-                        {mov.tipo === 'entrada' ? '+' : '-'}{mov.cantidad}
-                      </span>
-                    </td>
-                    <td>{mov.motivo}</td>
-                    <td className="text-sm text-muted">{mov.usuario}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={handleCloseModal}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: modalMode === 'add' || modalMode === 'edit' ? '500px' : '400px' }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <div className="modal-header">
               <h3 className="modal-title">
-                {modalMode === 'add' && 'Agregar Material'}
-                {modalMode === 'edit' && 'Editar Material'}
-                {modalMode === 'input' && 'Registrar Entrada'}
-                {modalMode === 'output' && 'Registrar Salida'}
+                {modalMode === 'add' && 'Nuevo Producto'}
+                {modalMode === 'edit' && 'Editar Producto'}
+                {modalMode === 'input' && 'Ingresar Nuevo Lote'}
+                {modalMode === 'output' && 'Salida de Material'}
               </h3>
               <button className="btn btn-sm btn-outline" onClick={handleCloseModal}>
                 <XMarkIcon style={{ width: '18px', height: '18px' }} />
               </button>
             </div>
             <div className="modal-body">
+              {/* Add/Edit Product Form */}
               {(modalMode === 'add' || modalMode === 'edit') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div className="form-group">
-                      <label className="form-label">Codigo *</label>
+                      <label className="form-label">Codigo Barras</label>
                       <input
                         type="text"
                         className="form-input"
                         value={formData.codigo}
                         onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                        required
                       />
                     </div>
                     <div className="form-group">
@@ -438,12 +524,13 @@ export default function Inventory() {
                         <option value="L">Litros (L)</option>
                         <option value="g">Gramos (g)</option>
                         <option value="par">Pares</option>
+                        <option value="caja">Cajas</option>
                       </select>
                     </div>
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Nombre *</label>
+                    <label className="form-label">Nombre del Producto *</label>
                     <input
                       type="text"
                       className="form-input"
@@ -453,30 +540,8 @@ export default function Inventory() {
                     />
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Cantidad Actual</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        value={formData.cantidad}
-                        onChange={(e) => setFormData({ ...formData, cantidad: e.target.value })}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Stock Minimo *</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        value={formData.minimo}
-                        onChange={(e) => setFormData({ ...formData, minimo: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-
                   <div className="form-group">
-                    <label className="form-label">Proveedor</label>
+                    <label className="form-label">Descripcion / Proveedor</label>
                     <input
                       type="text"
                       className="form-input"
@@ -484,108 +549,172 @@ export default function Inventory() {
                       onChange={(e) => setFormData({ ...formData, proveedor: e.target.value })}
                     />
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Lote</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={formData.lote}
-                        onChange={(e) => setFormData({ ...formData, lote: e.target.value })}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Fecha Vencimiento</label>
-                      <input
-                        type="date"
-                        className="form-input"
-                        value={formData.vencimiento}
-                        onChange={(e) => setFormData({ ...formData, vencimiento: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {(modalMode === 'input' || modalMode === 'output') && selectedItem && (
-                <div>
-                  <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
-                    <strong>{selectedItem.nombre}</strong><br />
-                    Stock actual: <strong>{selectedItem.cantidad} {selectedItem.unidad}</strong>
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: '1rem' }}>
-                    <label className="form-label">Cantidad *</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      placeholder={modalMode === 'input' ? 'Cantidad a ingresar' : 'Cantidad a retirar'}
-                      value={movementData.cantidad}
-                      onChange={(e) => setMovementData({ ...movementData, cantidad: e.target.value })}
-                      min="1"
-                      max={modalMode === 'output' ? selectedItem.cantidad : undefined}
-                      required
-                    />
-                  </div>
-
+                    
                   <div className="form-group">
-                    <label className="form-label">Motivo *</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder={modalMode === 'input' ? 'Ej: Compra, Donacion' : 'Ej: Orden #0001, Calibracion'}
-                      value={movementData.motivo}
-                      onChange={(e) => setMovementData({ ...movementData, motivo: e.target.value })}
-                      required
-                    />
+                    <label className="form-label">Stock Minimo Global *</label>
+                     <input
+                        type="number"
+                        className="form-input"
+                        value={formData.minimo}
+                        onChange={(e) => setFormData({ ...formData, minimo: e.target.value })}
+                        required
+                      />
                   </div>
 
-                  {modalMode === 'input' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Lote (opcional)</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="Numero de lote"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Vencimiento (opcional)</label>
-                        <input
-                          type="date"
-                          className="form-input"
-                        />
-                      </div>
+                  {modalMode === 'add' && (
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+                        <p className="text-sm font-bold text-muted" style={{ marginBottom: '0.5rem' }}>Stock Inicial (Primer Lote)</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group">
+                                <label className="form-label">Cantidad Inicial</label>
+                                <input
+                                    type="number"
+                                    className="form-input"
+                                    value={formData.cantidad}
+                                    onChange={(e) => setFormData({ ...formData, cantidad: e.target.value })}
+                                />
+                            </div>
+                             <div className="form-group">
+                                <label className="form-label">Codigo Lote</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={formData.lote}
+                                    onChange={(e) => setFormData({ ...formData, lote: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Vencimiento</label>
+                                <input
+                                    type="date"
+                                    className="form-input"
+                                    value={formData.vencimiento}
+                                    onChange={(e) => setFormData({ ...formData, vencimiento: e.target.value })}
+                                />
+                            </div>
+                        </div>
                     </div>
                   )}
                 </div>
               )}
+
+              {/* Add Input (New Lot) Form */}
+              {modalMode === 'input' && selectedItem && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="alert alert-info">
+                    Agregando stock a: <strong>{selectedItem.nombre}</strong>
+                  </div>
+                  
+                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                            <label className="form-label">Cantidad *</label>
+                            <input
+                                type="number"
+                                className="form-input"
+                                value={formData.cantidad}
+                                onChange={(e) => setFormData({ ...formData, cantidad: e.target.value })}
+                                required
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Codigo Lote *</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                value={formData.lote}
+                                onChange={(e) => setFormData({ ...formData, lote: e.target.value })}
+                                required
+                            />
+                        </div>
+                    </div>
+                     <div className="form-group">
+                        <label className="form-label">Fecha Vencimiento</label>
+                        <input
+                            type="date"
+                            className="form-input"
+                            value={formData.vencimiento}
+                            onChange={(e) => setFormData({ ...formData, vencimiento: e.target.value })}
+                        />
+                    </div>
+                </div>
+              )}
+              
+               {modalMode === 'output' && selectedItem && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="alert alert-warning">
+                    Registrando salida de: <strong>{selectedItem.nombre}</strong> <br/>
+                    <small>Se descontará automáticamente del lote más antiguo.</small>
+                  </div>
+                  
+                   <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                            <label className="form-label">Cantidad a retirar *</label>
+                            <input
+                                type="number"
+                                className="form-input"
+                                value={movementData.cantidad}
+                                onChange={(e) => setMovementData({ ...movementData, cantidad: e.target.value })}
+                                required
+                                min="1"
+                                max={selectedItem.cantidad}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Lote a descontar</label>
+                            <select
+                                className="form-select"
+                                value={movementData.loteId || ''}
+                                onChange={(e) => setMovementData({ ...movementData, loteId: e.target.value })}
+                            >
+                                <option value="">Automático (Más antiguo primero)</option>
+                                {selectedItem.lotes && selectedItem.lotes
+                                    .filter(l => l.cantidad_actual > 0)
+                                    .map(l => (
+                                    <option key={l.id} value={l.id}>
+                                        {l.codigo_lote} — Vence: {formatDate(l.fecha_vencimiento)} (Stock: {l.cantidad_actual})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Motivo *</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                value={movementData.motivo}
+                                onChange={(e) => setMovementData({ ...movementData, motivo: e.target.value })}
+                                required
+                                placeholder="Ej: Uso interno, Dañado, Vencido..."
+                            />
+                        </div>
+                    </div>
+                </div>
+              )}
+
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={handleCloseModal}>
                 Cancelar
               </button>
               {(modalMode === 'add' || modalMode === 'edit') && (
-                <button className="btn btn-primary" onClick={handleSaveItem}>
-                  {modalMode === 'add' ? 'Agregar' : 'Guardar Cambios'}
+                <button className="btn btn-primary" onClick={handleSaveProduct}>
+                  {modalMode === 'add' ? 'Crear Producto' : 'Guardar Cambios'}
                 </button>
               )}
               {modalMode === 'input' && (
                 <button 
                   className="btn btn-success" 
-                  onClick={handleMovement}
-                  disabled={!movementData.cantidad || !movementData.motivo}
+                  onClick={handleAddStock}
+                  disabled={!formData.cantidad || !formData.lote}
                 >
-                  <ArrowUpIcon style={{ width: '16px', height: '16px' }} />
-                  Registrar Entrada
+                  <PlusIcon style={{ width: '16px', height: '16px' }} />
+                  Registrar Ingreso
                 </button>
               )}
               {modalMode === 'output' && (
                 <button 
                   className="btn btn-warning" 
-                  onClick={handleMovement}
+                  onClick={handleOutput}
                   disabled={!movementData.cantidad || !movementData.motivo}
                   style={{ backgroundColor: 'var(--warning)', color: 'white' }}
                 >

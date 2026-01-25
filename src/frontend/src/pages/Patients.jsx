@@ -12,6 +12,7 @@ import {
   EyeIcon,
   XMarkIcon,
   UserIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 export default function Patients() {
@@ -65,12 +66,16 @@ export default function Patients() {
   const handleOpenModal = (patient = null) => {
     if (patient) {
       setEditingPatient(patient);
-      // Format date for input field (YYYY-MM-DD or full timestamp)
-      const dateStr = patient.fecha_nacimiento 
-        ? new Date(patient.fecha_nacimiento).toISOString().split('T')[0]
-        : '';
-        
-      setFormData({ ...patient, fecha_nacimiento: dateStr });
+      setFormData({
+        nombre: patient.nombre,
+        cedula: patient.cedula,
+        telefono: patient.telefono || '',
+        direccion: patient.direccion || '',
+        email: patient.email || '',
+        sexo: patient.sexo || 'M',
+        // Convert ISO string to YYYY-MM-DD for input type="date"
+        fecha_nacimiento: patient.fecha_nacimiento ? patient.fecha_nacimiento.split('T')[0] : '',
+      });
     } else {
       setEditingPatient(null);
       setFormData({
@@ -120,18 +125,18 @@ export default function Patients() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleToggleStatus = async (id) => {
     try {
-      const response = await fetch(`/api/patients/${id}`, {
-        method: 'DELETE',
+      const response = await fetch(`/api/patients/${id}/status`, {
+        method: 'PATCH',
       });
 
-      if (!response.ok) throw new Error('Failed to delete patient');
+      if (!response.ok) throw new Error('Failed to update patient status');
 
       await fetchPatients(); // Refresh list
       setShowDeleteConfirm(null);
     } catch (err) {
-      alert(`Error al eliminar paciente: ${err.message}`);
+      alert(`Error al actualizar estado del paciente: ${err.message}`);
     }
   };
 
@@ -191,23 +196,24 @@ export default function Patients() {
                 <th>Sexo</th>
                 <th>Telefono</th>
                 <th>Correo</th>
+                <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
                     <UserIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
                     <p className="text-muted">No se encontraron pacientes</p>
                   </td>
                 </tr>
               ) : (
                 filteredPatients.map(patient => (
-                  <tr key={patient.id}>
+                  <tr key={patient.id} style={{ opacity: patient.activo ? 1 : 0.6 }}>
                     <td style={{ fontWeight: 500 }}>{patient.cedula}</td>
                     <td>{patient.nombre}</td>
-                    <td>{calculateAge(patient.fecha_nacimiento)} anos</td>
+                    <td>{calculateAge(patient.fecha_nacimiento)} Años</td>
                     <td>
                       <span className={`badge ${patient.sexo === 'M' ? 'badge-info' : 'badge-warning'}`}>
                         {patient.sexo === 'M' ? 'Masculino' : 'Femenino'}
@@ -215,6 +221,11 @@ export default function Patients() {
                     </td>
                     <td>{patient.telefono}</td>
                     <td>{patient.email}</td>
+                    <td>
+                      <span className={`badge ${patient.activo ? 'badge-success' : 'badge-neutral'}`}>
+                        {patient.activo ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <Link 
@@ -233,13 +244,22 @@ export default function Patients() {
                             <PencilIcon style={{ width: '16px', height: '16px' }} />
                           </button>
                         )}
-                        {canDelete && (
+                        {patient.activo ? (
                           <button 
                             className="btn btn-sm btn-danger"
-                            onClick={() => setShowDeleteConfirm(patient.id)}
-                            title="Eliminar"
+                            onClick={() => setShowDeleteConfirm(patient)}
+                            title="Desactivar"
                           >
                             <TrashIcon style={{ width: '16px', height: '16px' }} />
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn btn-sm btn-outline"
+                            onClick={() => setShowDeleteConfirm(patient)}
+                            title="Reactivar"
+                            style={{ color: 'var(--success)', borderColor: 'var(--success)' }}
+                          >
+                            <ArrowPathIcon style={{ width: '16px', height: '16px' }} />
                           </button>
                         )}
                       </div>
@@ -359,22 +379,31 @@ export default function Patients() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Toggle Status Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="modal-overlay" onClick={() => setShowDeleteConfirm(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div className="modal-header">
-              <h3 className="modal-title">Confirmar Eliminacion</h3>
+              <h3 className="modal-title">
+                {showDeleteConfirm.activo ? 'Confirmar Desactivacion' : 'Confirmar Reactivacion'}
+              </h3>
             </div>
             <div className="modal-body">
-              <p>Esta seguro que desea eliminar este paciente de la base de datos?</p>
+              <p>
+                {showDeleteConfirm.activo 
+                  ? 'Esta seguro que desea desactivar este paciente? El registro se mantendra pero no podra ser utilizado para nuevas ordenes.'
+                  : 'Esta seguro que desea reactivar este paciente? Podra volver a crear ordenes para el.'}
+              </p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(null)}>
                 Cancelar
               </button>
-              <button className="btn btn-danger" onClick={() => handleDelete(showDeleteConfirm)}>
-                Eliminar
+              <button 
+                className={`btn ${showDeleteConfirm.activo ? 'btn-danger' : 'btn-primary'}`}
+                onClick={() => handleToggleStatus(showDeleteConfirm.id)}
+              >
+                {showDeleteConfirm.activo ? 'Desactivar' : 'Reactivar'}
               </button>
             </div>
           </div>
