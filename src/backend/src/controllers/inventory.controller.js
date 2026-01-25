@@ -27,7 +27,15 @@ export const inventoryController = {
         lote, vencimiento, cantidad // Lot fields
       } = req.body;
 
-      // 1. Create Product
+      // 1. Validate duplicates
+      if (codigo) {
+          const existing = await inventoryStorage.findByCode(codigo);
+          if (existing) {
+              return res.status(409).json({ error: 'Ya existe un producto con este codigo de barras' });
+          }
+      }
+
+      // 2. Create Product
       const product = await inventoryStorage.createProduct({
         nombre,
         codigo_barras: codigo,
@@ -36,7 +44,7 @@ export const inventoryController = {
         stock_minimo: parseInt(minimo)
       });
 
-      // 2. If quantity > 0, create initial Lot automatically
+      // 3. If quantity > 0, create initial Lot automatically
       if (cantidad && parseInt(cantidad) > 0) {
         await inventoryStorage.addLot({
           producto_id: product.id,
@@ -48,6 +56,9 @@ export const inventoryController = {
 
       res.status(201).json(product);
     } catch (error) {
+      if (error.code === '23505') {
+          return res.status(409).json({ error: 'Ya existe un producto con ese identificador unico (codigo)' });
+      }
       console.error('Error creating product:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -77,6 +88,14 @@ export const inventoryController = {
       const { id } = req.params;
       const { nombre, codigo, unidad, descripcion, minimo } = req.body;
       
+      // Check conflict
+      if (codigo) {
+           const existing = await inventoryStorage.findByCode(codigo);
+           if (existing && existing.id !== parseInt(id)) {
+                return res.status(409).json({ error: 'Ya existe otro producto con este codigo de barras' });
+           }
+      }
+      
       const updated = await inventoryStorage.updateProduct(id, {
         nombre,
         codigo_barras: codigo,
@@ -86,6 +105,9 @@ export const inventoryController = {
       });
       res.json(updated);
     } catch (e) {
+      if (e.code === '23505') {
+          return res.status(409).json({ error: 'Codigo de barras duplicado' });
+      }
       console.error(e);
       res.status(500).json({ error: 'Error updating product' });
     }

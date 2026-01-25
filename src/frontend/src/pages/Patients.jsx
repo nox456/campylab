@@ -14,9 +14,11 @@ import {
   UserIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
+import { useToast } from '../context/ToastContext';
 
 export default function Patients() {
   const { hasPermission } = useAuth();
+  const { showToast } = useToast();
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -120,8 +122,9 @@ export default function Patients() {
 
       await fetchPatients(); // Refresh list
       handleCloseModal();
+      showToast(editingPatient ? 'Paciente actualizado exitosamente' : 'Paciente creado exitosamente', 'success');
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showToast(err.message, 'error');
     }
   };
 
@@ -135,8 +138,12 @@ export default function Patients() {
 
       await fetchPatients(); // Refresh list
       setShowDeleteConfirm(null);
+      showToast(
+          showDeleteConfirm.activo ? 'Paciente desactivado exitosamente' : 'Paciente reactivado exitosamente',
+          'success'
+      );
     } catch (err) {
-      alert(`Error al actualizar estado del paciente: ${err.message}`);
+      showToast(`Error al actualizar estado del paciente: ${err.message}`, 'error');
     }
   };
 

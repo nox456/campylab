@@ -110,6 +110,20 @@ export const ordersStorage = {
     `;
     const consumiblesResult = await client.query(consumiblesQuery, [id]);
 
+    // Get Payments
+    const paymentsQuery = `
+      SELECT p.*, u.nombre as usuario
+      FROM pagos p
+      LEFT JOIN usuarios u ON p.usuario_id = u.id
+      WHERE p.orden_id = $1
+      ORDER BY p.fecha DESC
+    `;
+    const paymentsResult = await client.query(paymentsQuery, [id]);
+    const pagos = paymentsResult.rows;
+    
+    // Calculate total paid
+    const pagado = pagos.reduce((sum, p) => sum + parseFloat(p.monto), 0);
+
     return { 
         ...order, 
         paciente: {
@@ -123,8 +137,8 @@ export const ordersStorage = {
             edad: age
         },
         exams,
-        // Mocking payments for now
-        pagos: [], 
+        pagos,
+        pagado, 
         consumibles: consumiblesResult.rows
     };
   },

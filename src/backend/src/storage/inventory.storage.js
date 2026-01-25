@@ -32,6 +32,11 @@ export const inventoryStorage = {
     return result.rows[0] || null;
   },
 
+  async findByCode(code) {
+      const result = await client.query('SELECT * FROM productos WHERE codigo_barras = $1', [code]);
+      return result.rows[0] || null;
+  },
+
   // Create a new Product definition
   async createProduct(product) {
     const { nombre, codigo_barras, unit, description, stock_minimo } = product;

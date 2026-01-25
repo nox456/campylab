@@ -36,10 +36,18 @@ export const patientsController = {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      // Check if patient exists
+      // Check if patient exists (Cedula)
       const existingPatient = await patientsStorage.findByCedula(cedula);
       if (existingPatient) {
-        return res.status(409).json({ error: 'Patient with this cedula already exists' });
+        return res.status(409).json({ error: 'Ya existe un paciente con esta cedula' });
+      }
+
+      // Check if email exists
+      if (email) {
+          const emailPatient = await patientsStorage.findByEmail(email);
+          if (emailPatient) {
+              return res.status(409).json({ error: 'Ya existe un paciente con este correo electronico' });
+          }
       }
 
       const newPatient = await patientsStorage.create({
@@ -54,6 +62,15 @@ export const patientsController = {
 
       res.status(201).json(newPatient);
     } catch (error) {
+      if (error.code === '23505') {
+          // Unique violation
+          if (error.detail.includes('email')) {
+              return res.status(409).json({ error: 'El correo electronico ya esta registrado' });
+          }
+          if (error.detail.includes('cedula')) {
+              return res.status(409).json({ error: 'La cedula ya esta registrada' });
+          }
+      }
       console.error('Error creating patient:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -77,7 +94,15 @@ export const patientsController = {
       // Check if new cedula conflicts with another patient
       const conflictPatient = await patientsStorage.findByCedula(cedula);
       if (conflictPatient && conflictPatient.id !== parseInt(id)) {
-        return res.status(409).json({ error: 'Another patient with this cedula already exists' });
+        return res.status(409).json({ error: 'Ya existe otro paciente con esta cedula' });
+      }
+
+      // Check if new email conflicts
+      if (email) {
+          const conflictEmail = await patientsStorage.findByEmail(email);
+          if (conflictEmail && conflictEmail.id !== parseInt(id)) {
+              return res.status(409).json({ error: 'Ya existe otro paciente con este correo electronico' });
+          }
       }
 
       const updatedPatient = await patientsStorage.update(id, {
@@ -92,6 +117,14 @@ export const patientsController = {
 
       res.json(updatedPatient);
     } catch (error) {
+      if (error.code === '23505') {
+          if (error.detail.includes('email')) {
+              return res.status(409).json({ error: 'El correo electronico ya esta registrado por otro paciente' });
+          }
+          if (error.detail.includes('cedula')) {
+              return res.status(409).json({ error: 'La cedula ya esta registrada por otro paciente' });
+          }
+      }
       console.error('Error updating patient:', error);
       res.status(500).json({ error: 'Internal server error' });
     }

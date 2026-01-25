@@ -15,9 +15,11 @@ import {
   DocumentArrowUpIcon,
   EyeIcon,
 } from '@heroicons/react/24/outline';
+import { useToast } from '../context/ToastContext';
 
 export default function Results() {
   const { user, hasPermission } = useAuth();
+  const { showToast } = useToast();
   const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
@@ -184,10 +186,10 @@ export default function Results() {
   
           await fetchPendingOrders();
           handleCloseModal();
-          setSuccessMessage('Resultados guardados exitosamente');
+          showToast('Resultados guardados exitosamente', 'success');
       } catch(e) {
           console.error(e);
-          alert('Error guardando resultados: ' + e.message);
+          showToast('Error guardando resultados: ' + e.message, 'error');
       }
   };
 

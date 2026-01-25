@@ -14,6 +14,7 @@ import {
   CurrencyDollarIcon,
   ArchiveBoxIcon,
 } from '@heroicons/react/24/outline';
+import { useToast } from '../context/ToastContext';
 
 const statusSteps = [
   { key: 'creado', label: 'Creado' },
@@ -24,27 +25,46 @@ const statusSteps = [
 
 export default function OrderDetail({ orderId }) {
   const { hasPermission, canAccessModule } = useAuth();
+  const { showToast } = useToast();
   const [order, setOrder] = useState(null);
+  const [payments, setPayments] = useState([]);
   const [activeTab, setActiveTab] = useState('resultados');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('efectivo');
+  const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [loading, setLoading] = useState(true);
 
+  const fetchOrderData = () => {
+    if (orderId) {
+        fetch(`/api/orders/${orderId}`)
+          .then(res => res.json())
+          .then(data => {
+              setOrder(data);
+              setLoading(false);
+          })
+          .catch(err => {
+              console.error(err);
+              setLoading(false);
+          });
+    }
+  };
+
+  const fetchPayments = () => {
+      fetch(`/api/payments/order/${orderId}`)
+          .then(res => res.json())
+          .then(data => setPayments(data))
+          .catch(console.error);
+  };
+
   useEffect(() => {
-      if (orderId) {
-          fetch(`/api/orders/${orderId}`)
-            .then(res => res.json())
-            .then(data => {
-                setOrder(data);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error(err);
-                setLoading(false);
-            });
-      }
+      fetchOrderData();
   }, [orderId]);
+
+  useEffect(() => {
+      if (activeTab === 'pagos' && orderId) {
+          fetchPayments();
+      }
+  }, [activeTab, orderId]);
 
   if (loading || !order) {
       return (
@@ -56,7 +76,12 @@ export default function OrderDetail({ orderId }) {
 
   // Ensure numeric
   const total = Number(order.total) || 0;
-  const pagado = Number(order.pagado) || 0;
+  // Use local calculation for immediate feedback or backend 'pagado'
+  const totalPaid = payments.reduce((acc, p) => acc + parseFloat(p.monto), 0);
+  // Fallback to order.pagado if payments not loaded yet (initial load?)
+  // Actually, fetchPayments loads on tab switch. If we want global status, we need to fetch payments always or trust backend order.pagado.
+  // Let's trust order.pagado since we reload order data.
+  const pagado = Number(order.pagado) || 0; 
   const pendiente = total - pagado;
   
   const canLoadResults = hasPermission('results', 'create') || hasPermission('results', 'update');
@@ -77,14 +102,34 @@ export default function OrderDetail({ orderId }) {
     return !isNaN(v) && (v < min || v > max);
   };
 
-  const handleRegisterPayment = () => {
-    // Payment logic goes here (mock for now on frontend state, should call API)
-    alert("Funcionalidad de pago backend pendiente de implementacion completa.");
-    setShowPaymentModal(false);
+  const handleRegisterPayment = async () => {
+    try {
+        const res = await fetch('/api/payments', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                ordenId: order.id,
+                monto: parseFloat(paymentAmount),
+                metodo: paymentMethod,
+                nota: 'Pago registrado desde detalle de orden'
+            })
+        });
+
+        if (!res.ok) throw new Error('Error registrando pago');
+
+        setShowPaymentModal(false);
+        setPaymentAmount('');
+        fetchPayments();
+        fetchOrderData(); // To update 'pagado' amount if backend updates it, or we rely on payments sum
+        showToast('Pago registrado con exito', 'success');
+    } catch (e) {
+        console.error(e);
+        showToast('Error al registrar pago', 'error');
+    }
   };
 
   const handleDeductInventory = () => {
-     alert("Funcionalidad de inventario backend pendiente de implementacion completa.");
+     showToast("Funcionalidad de inventario backend pendiente de implementacion completa.", 'info');
   };
 
   const handleMarkDelivered = async () => {
@@ -142,10 +187,16 @@ export default function OrderDetail({ orderId }) {
               {pendiente > 0 ? `Pendiente: $${pendiente.toFixed(2)}` : 'Pagado completamente'}
             </p>
             {order.estado === 'pagado' && (
-              <button className="btn btn-sm btn-outline" style={{ marginTop: '0.5rem' }}>
-                <PrinterIcon style={{ width: '16px', height: '16px' }} />
-                Imprimir Reporte
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
+                <button className="btn btn-sm btn-success" onClick={handleMarkDelivered}>
+                  <CheckIcon style={{ width: '16px', height: '16px' }} />
+                  Marcar Entregado
+                </button>
+                <button className="btn btn-sm btn-outline">
+                  <PrinterIcon style={{ width: '16px', height: '16px' }} />
+                  Imprimir Reporte
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -352,34 +403,48 @@ export default function OrderDetail({ orderId }) {
               </div>
             </div>
 
-             <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Fecha/Hora</th>
-                    <th>Monto</th>
-                    <th>Metodo</th>
-                    <th>Registrado por</th>
-                  </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                      <td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>
-                        <p className="text-muted">No hay pagos registrados (Funcionalidad pendiente)</p>
-                      </td>
-                    </tr>
-                </tbody>
-              </table>
-            </div>
+              <div className="table-container">
+               <table>
+                 <thead>
+                   <tr>
+                     <th>Fecha/Hora</th>
+                     <th>Monto</th>
+                     <th>Metodo</th>
+                     <th>Registrado por</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                    {payments.length === 0 ? (
+                        <tr>
+                            <td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>
+                                <p className="text-muted">No hay pagos registrados.</p>
+                            </td>
+                        </tr>
+                    ) : (
+                        payments.map(p => (
+                            <tr key={p.id}>
+                                <td>
+                                    <div className="text-sm">
+                                        {new Date(p.fecha).toLocaleDateString()}
+                                        <span className="mx-1"> - </span>
+                                        <span className="text-muted">{new Date(p.fecha).toLocaleTimeString()}</span>
+                                    </div>
+                                </td>
+                                <td style={{ fontWeight: 600, color: 'var(--success)' }}>
+                                    ${parseFloat(p.monto).toFixed(2)}
+                                </td>
+                                <td>
+                                    <span className="badge badge-neutral">{p.metodo}</span>
+                                </td>
+                                <td className="text-sm text-muted">{p.usuario || '-'}</td>
+                            </tr>
+                        ))
+                    )}
+                 </tbody>
+               </table>
+             </div>
 
-            {order.estado === 'pagado' && (
-              <div style={{ marginTop: '1rem' }}>
-                <button className="btn btn-success" onClick={handleMarkDelivered}>
-                  <CheckIcon style={{ width: '18px', height: '18px' }} />
-                  Marcar como Entregado
-                </button>
-              </div>
-            )}
+
           </div>
         )}
       </div>
@@ -419,9 +484,9 @@ export default function OrderDetail({ orderId }) {
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                 >
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="divisa">Divisa (USD)</option>
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Divisa">Divisa (USD)</option>
                 </select>
               </div>
             </div>

@@ -7,6 +7,7 @@ import { requireAuth } from '../middleware/auth.middleware.js';
 import inventoryRouter from './inventory.router.js';
 import ordersRouter from './orders.router.js';
 import resultsRouter from './results.router.js';
+import paymentsRouter from './payments.router.js';
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.use('/exams', requireAuth, examsRouter);
 router.use('/inventory', requireAuth, inventoryRouter);
 router.use('/orders', requireAuth, ordersRouter);
 router.use('/results', requireAuth, resultsRouter);
+router.use('/payments', requireAuth, paymentsRouter);
 
 export default router;

@@ -16,6 +16,11 @@ export const patientsStorage = {
     return result.rows[0] || null;
   },
 
+  async findByEmail(email) {
+    const result = await client.query('SELECT * FROM pacientes WHERE email = $1', [email]);
+    return result.rows[0] || null;
+  },
+
   async create(patient) {
     const { nombre, cedula, email, telefono, direccion, sexo, fecha_nacimiento } = patient;
     const result = await client.query(

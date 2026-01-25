@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { Link } from '../router/Router';
@@ -16,29 +16,39 @@ import {
 } from '@heroicons/react/24/outline';
 
 // Mock payments data
-const mockPayments = [
-  { id: 1, orden_id: 1, paciente: 'Maria Garcia', fecha: '2025-01-18 09:30', monto: 50.00, metodo: 'Efectivo', usuario: 'Carlos Recepcionista' },
-  { id: 2, orden_id: 2, paciente: 'Jose Rodriguez', fecha: '2025-01-18 10:15', monto: 280.00, metodo: 'Transferencia', usuario: 'Carlos Recepcionista' },
-  { id: 3, orden_id: 3, paciente: 'Ana Martinez', fecha: '2025-01-17 14:20', monto: 50.00, metodo: 'Efectivo', usuario: 'Carlos Recepcionista' },
-  { id: 4, orden_id: 4, paciente: 'Carlos Lopez', fecha: '2025-01-17 11:45', monto: 200.00, metodo: 'Divisa', usuario: 'Carlos Recepcionista' },
-  { id: 5, orden_id: 4, paciente: 'Carlos Lopez', fecha: '2025-01-17 15:30', monto: 220.00, metodo: 'Transferencia', usuario: 'Carlos Recepcionista' },
-  { id: 6, orden_id: 5, paciente: 'Laura Hernandez', fecha: '2025-01-16 16:00', monto: 175.00, metodo: 'Efectivo', usuario: 'Carlos Recepcionista' },
-  { id: 7, orden_id: 6, paciente: 'Pedro Sanchez', fecha: '2025-01-16 09:00', monto: 95.00, metodo: 'Transferencia', usuario: 'Carlos Recepcionista' },
-  { id: 8, orden_id: 7, paciente: 'Rosa Fernandez', fecha: '2025-01-15 10:30', monto: 120.00, metodo: 'Efectivo', usuario: 'Carlos Recepcionista' },
-];
-
 export default function Payments() {
   const { hasPermission } = useAuth();
-  const [payments] = useState(mockPayments);
+  const [payments, setPayments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchPayments();
+  }, []);
+
+  const fetchPayments = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/payments');
+      if (res.ok) {
+        const data = await res.json();
+        setPayments(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredPayments = payments.filter(p => {
     const matchesSearch = 
-      p.paciente.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.paciente || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.orden_id.toString().includes(searchTerm);
+    // backend sends timestamp, frontend filter expects YYYY-MM-DD start
     const matchesDate = !dateFilter || p.fecha.startsWith(dateFilter);
     const matchesMethod = !methodFilter || p.metodo === methodFilter;
     return matchesSearch && matchesDate && matchesMethod;
@@ -46,10 +56,12 @@ export default function Payments() {
 
   // Calculate totals
   const totals = filteredPayments.reduce((acc, p) => {
-    acc.total += p.monto;
-    if (p.metodo === 'Efectivo') acc.efectivo += p.monto;
-    else if (p.metodo === 'Transferencia') acc.transferencia += p.monto;
-    else if (p.metodo === 'Divisa') acc.divisa += p.monto;
+      // p.monto comes as string from DB (decimal), parse it
+    const amount = parseFloat(p.monto) || 0;
+    acc.total += amount;
+    if (p.metodo === 'Efectivo') acc.efectivo += amount;
+    else if (p.metodo === 'Transferencia') acc.transferencia += amount;
+    else if (p.metodo === 'Divisa') acc.divisa += amount;
     return acc;
   }, { total: 0, efectivo: 0, transferencia: 0, divisa: 0 });
 
@@ -245,8 +257,8 @@ export default function Payments() {
                     <td>{payment.paciente}</td>
                     <td>
                       <div>
-                        <p className="text-sm">{payment.fecha.split(' ')[0]}</p>
-                        <p className="text-xs text-muted">{payment.fecha.split(' ')[1]}</p>
+                        <p className="text-sm">{new Date(payment.fecha).toLocaleDateString()}</p>
+                        <p className="text-xs text-muted">{new Date(payment.fecha).toLocaleTimeString()}</p>
                       </div>
                     </td>
                     <td>
@@ -256,9 +268,9 @@ export default function Payments() {
                       </span>
                     </td>
                     <td style={{ fontWeight: 600, color: 'var(--success)' }}>
-                      ${payment.monto.toFixed(2)}
+                      ${parseFloat(payment.monto).toFixed(2)}
                     </td>
-                    <td className="text-sm text-muted">{payment.usuario}</td>
+                    <td className="text-sm text-muted">{payment.usuario || '-'}</td>
                     <td>
                       <Link to={`/ordenes/${payment.orden_id}`} className="btn btn-sm btn-outline">
                         <EyeIcon style={{ width: '16px', height: '16px' }} />
@@ -282,75 +294,88 @@ export default function Payments() {
           </h3>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
-          {/* Today */}
-          <div style={{ 
-            padding: '1rem', 
-            backgroundColor: 'var(--muted)', 
-            borderRadius: 'var(--radius)',
-            borderLeft: '3px solid var(--primary)',
-          }}>
-            <p className="text-sm font-medium" style={{ marginBottom: '0.5rem' }}>Hoy (2025-01-18)</p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span className="text-sm text-muted">Efectivo:</span>
-              <span className="text-sm font-medium">$50.00</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span className="text-sm text-muted">Transferencia:</span>
-              <span className="text-sm font-medium">$280.00</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
-              <span className="font-medium">Total:</span>
-              <span className="font-semibold" style={{ color: 'var(--primary)' }}>$330.00</span>
-            </div>
-          </div>
+          {['today', 'week', 'month'].map(range => {
+              const now = new Date();
+              const todayStr = now.toISOString().split('T')[0];
+              
+              let paymentsInRange = [];
+              let label = '';
+              let dateInfo = '';
 
-          {/* Yesterday */}
-          <div style={{ 
-            padding: '1rem', 
-            backgroundColor: 'var(--muted)', 
-            borderRadius: 'var(--radius)',
-            borderLeft: '3px solid var(--muted-foreground)',
-          }}>
-            <p className="text-sm font-medium" style={{ marginBottom: '0.5rem' }}>Ayer (2025-01-17)</p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span className="text-sm text-muted">Efectivo:</span>
-              <span className="text-sm font-medium">$50.00</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span className="text-sm text-muted">Transferencia:</span>
-              <span className="text-sm font-medium">$220.00</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span className="text-sm text-muted">Divisa:</span>
-              <span className="text-sm font-medium">$200.00</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
-              <span className="font-medium">Total:</span>
-              <span className="font-semibold">$470.00</span>
-            </div>
-          </div>
+              if (range === 'today') {
+                  label = 'Hoy';
+                  dateInfo = now.toLocaleDateString();
+                  paymentsInRange = payments.filter(p => {
+                      return new Date(p.fecha).toLocaleDateString() === now.toLocaleDateString();
+                  });
+              } else if (range === 'week') {
+                  label = 'Esta Semana';
+                  // Calculate start of week (Monday) based on local time
+                  const day = now.getDay(); // 0 (Sun) - 6 (Sat)
+                  // If Sunday (0), we want previous Monday (-6 days). If Mon (1), 0 days ago.
+                  // Monday is index 1. 
+                  const diffToMonday = day === 0 ? 6 : day - 1; 
+                  const monday = new Date(now);
+                  monday.setDate(now.getDate() - diffToMonday);
+                  monday.setHours(0,0,0,0);
+                  
+                  dateInfo = `Desde ${monday.toLocaleDateString()}`;
+                  
+                  paymentsInRange = payments.filter(p => {
+                      const pDate = new Date(p.fecha);
+                      return pDate >= monday;
+                  });
+              } else if (range === 'month') {
+                  label = 'Este Mes';
+                  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                  dateInfo = startOfMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                  paymentsInRange = payments.filter(p => {
+                      const pDate = new Date(p.fecha);
+                      // Check if same month and year
+                      return pDate.getMonth() === now.getMonth() && pDate.getFullYear() === now.getFullYear();
+                  });
+              }
 
-          {/* Two days ago */}
-          <div style={{ 
-            padding: '1rem', 
-            backgroundColor: 'var(--muted)', 
-            borderRadius: 'var(--radius)',
-            borderLeft: '3px solid var(--muted-foreground)',
-          }}>
-            <p className="text-sm font-medium" style={{ marginBottom: '0.5rem' }}>2025-01-16</p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span className="text-sm text-muted">Efectivo:</span>
-              <span className="text-sm font-medium">$175.00</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span className="text-sm text-muted">Transferencia:</span>
-              <span className="text-sm font-medium">$95.00</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
-              <span className="font-medium">Total:</span>
-              <span className="font-semibold">$270.00</span>
-            </div>
-          </div>
+              const stats = paymentsInRange.reduce((acc, p) => {
+                  const amount = parseFloat(p.monto) || 0;
+                  acc.total += amount;
+                  if (p.metodo === 'Efectivo') acc.efectivo += amount;
+                  else if (p.metodo === 'Transferencia') acc.transferencia += amount;
+                  else if (p.metodo === 'Divisa') acc.divisa += amount;
+                  return acc;
+              }, { total: 0, efectivo: 0, transferencia: 0, divisa: 0 });
+
+              const borderColors = { today: 'var(--primary)', week: 'var(--info)', month: 'var(--success)' };
+
+              return (
+                  <div key={range} style={{ 
+                    padding: '1rem', 
+                    backgroundColor: 'var(--muted)', 
+                    borderRadius: 'var(--radius)',
+                    borderLeft: `3px solid ${borderColors[range]}`,
+                  }}>
+                    <p className="text-sm font-medium" style={{ marginBottom: '0.5rem' }}>{label} ({dateInfo})</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span className="text-sm text-muted">Efectivo:</span>
+                      <span className="text-sm font-medium">${stats.efectivo.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span className="text-sm text-muted">Transferencia:</span>
+                      <span className="text-sm font-medium">${stats.transferencia.toFixed(2)}</span>
+                    </div>
+                    {stats.divisa > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span className="text-sm text-muted">Divisa:</span>
+                        <span className="text-sm font-medium">${stats.divisa.toFixed(2)}</span>
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+                      <span className="font-medium">Total:</span>
+                      <span className="font-semibold" style={{ color: 'var(--foreground)' }}>${stats.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+              );
+          })}
         </div>
       </div>
     </Layout>

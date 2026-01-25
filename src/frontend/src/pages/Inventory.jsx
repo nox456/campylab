@@ -15,11 +15,13 @@ import {
   ClockIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
+import { useToast } from '../context/ToastContext';
 
 const mockMovements = [];
 
 export default function Inventory() {
   const { hasPermission } = useAuth();
+  const { showToast } = useToast();
   const [inventory, setInventory] = useState([]);
   const [movements, setMovements] = useState([]); 
   const [searchTerm, setSearchTerm] = useState('');
@@ -186,8 +188,9 @@ export default function Inventory() {
       
       await fetchInventory();
       handleCloseModal();
+      showToast(modalMode === 'edit' ? 'Producto actualizado' : 'Producto creado', 'success');
     } catch (e) {
-      alert(e.message);
+      showToast(e.message, 'error');
     }
   };
 
@@ -209,8 +212,9 @@ export default function Inventory() {
         if (!res.ok) throw new Error('Error al agregar stock');
         await fetchInventory();
         handleCloseModal();
+        showToast('Stock agregado exitosamente', 'success');
     } catch(e) {
-        alert(e.message);
+        showToast(e.message, 'error');
     }
   }
 
@@ -236,8 +240,9 @@ export default function Inventory() {
         
         await fetchInventory();
         handleCloseModal();
+        showToast('Salida registrada exitosamente', 'success');
     } catch(e) {
-        alert(e.message);
+        showToast(e.message, 'error');
     }
   };
 

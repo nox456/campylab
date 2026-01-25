@@ -13,9 +13,11 @@ import {
   ClipboardDocumentListIcon,
   CheckIcon,
 } from '@heroicons/react/24/outline';
+import { useToast } from '../context/ToastContext';
 
 export default function Orders() {
   const { hasPermission } = useAuth();
+  const { showToast } = useToast();
   const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -79,11 +81,11 @@ export default function Orders() {
 
   const getStatusBadge = (status) => {
     const badges = {
-      creado: { class: 'badge badge-neutral', label: 'Creado' },
-      pendiente: { class: 'badge badge-neutral', label: 'Pendiente' },
-      procesando: { class: 'badge badge-info', label: 'Procesando' },
-      resultados_cargados: { class: 'badge badge-warning', label: 'Resultados' },
-      pagado: { class: 'badge badge-success', label: 'Pagado' },
+      creado: { class: 'badge badge-neutral', label: 'En espera de Resultados' },
+      pendiente: { class: 'badge badge-neutral', label: 'En espera de Resultados' },
+      procesando: { class: 'badge badge-info', label: 'En espera de Resultados' },
+      resultados_cargados: { class: 'badge badge-warning', label: 'En Espera de Pago' },
+      pagado: { class: 'badge badge-success', label: 'Pendiente por entregar' },
       entregado: { class: 'status-pill status-completed', label: 'Entregado' },
       cancelado: { class: 'status-pill status-cancelled', label: 'Cancelado' },
     };
@@ -133,8 +135,9 @@ export default function Orders() {
         // Assuming navigate works.
         // navigate(`/ordenes/${newOrder.id}`); 
         // For now, staying on list is fine or simple alert
+        showToast('Orden creada exitosamente', 'success');
     } catch (e) {
-        alert(e.message);
+        showToast(e.message, 'error');
     }
   };
 
