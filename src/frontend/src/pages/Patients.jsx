@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { Link } from '../router/Router';
@@ -14,22 +14,15 @@ import {
   UserIcon,
 } from '@heroicons/react/24/outline';
 
-// Mock patients data
-const initialPatients = [
-  { cedula: 12345678, nombre: 'Maria Garcia', fecha_nacimiento: '1985-03-15', telefono: '0412-1234567', direccion: 'Calle Principal 123', correo: 'maria@email.com', sexo: 'F', activo: true },
-  { cedula: 23456789, nombre: 'Jose Rodriguez', fecha_nacimiento: '1978-07-22', telefono: '0414-7654321', direccion: 'Avenida Central 456', correo: 'jose@email.com', sexo: 'M', activo: true },
-  { cedula: 34567890, nombre: 'Ana Martinez', fecha_nacimiento: '1990-11-08', telefono: '0416-9876543', direccion: 'Urbanizacion Los Pinos', correo: 'ana@email.com', sexo: 'F', activo: true },
-  { cedula: 45678901, nombre: 'Carlos Lopez', fecha_nacimiento: '1965-02-28', telefono: '0424-1122334', direccion: 'Residencias El Sol', correo: 'carlos@email.com', sexo: 'M', activo: true },
-  { cedula: 56789012, nombre: 'Laura Hernandez', fecha_nacimiento: '1995-09-12', telefono: '0412-5566778', direccion: 'Centro Comercial Plaza', correo: 'laura@email.com', sexo: 'F', activo: false },
-];
-
 export default function Patients() {
   const { hasPermission } = useAuth();
-  const [patients, setPatients] = useState(initialPatients);
+  const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     cedula: '',
     nombre: '',
@@ -44,6 +37,26 @@ export default function Patients() {
   const canUpdate = hasPermission('patients', 'update');
   const canDelete = hasPermission('patients', 'delete');
 
+  useEffect(() => {
+    fetchPatients();
+  }, []);
+
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/patients');
+      if (!response.ok) throw new Error('Failed to fetch patients');
+      const data = await response.json();
+      setPatients(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching patients:', err);
+      setError('Error al cargar la lista de pacientes.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredPatients = patients.filter(p => 
     p.cedula.toString().includes(searchTerm) ||
     p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
@@ -52,7 +65,12 @@ export default function Patients() {
   const handleOpenModal = (patient = null) => {
     if (patient) {
       setEditingPatient(patient);
-      setFormData({ ...patient });
+      // Format date for input field (YYYY-MM-DD or full timestamp)
+      const dateStr = patient.fecha_nacimiento 
+        ? new Date(patient.fecha_nacimiento).toISOString().split('T')[0]
+        : '';
+        
+      setFormData({ ...patient, fecha_nacimiento: dateStr });
     } else {
       setEditingPatient(null);
       setFormData({
@@ -73,26 +91,52 @@ export default function Patients() {
     setEditingPatient(null);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (editingPatient) {
-      setPatients(patients.map(p => 
-        p.cedula === editingPatient.cedula ? { ...formData, activo: true } : p
-      ));
-    } else {
-      setPatients([...patients, { ...formData, cedula: parseInt(formData.cedula), activo: true }]);
+    try {
+      const url = editingPatient 
+        ? `/api/patients/${editingPatient.id}`
+        : '/api/patients';
+      
+      const method = editingPatient ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Operation failed');
+      }
+
+      await fetchPatients(); // Refresh list
+      handleCloseModal();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
     }
-    handleCloseModal();
   };
 
-  const handleDeactivate = (cedula) => {
-    setPatients(patients.map(p => 
-      p.cedula === cedula ? { ...p, activo: false } : p
-    ));
-    setShowDeleteConfirm(null);
+  const handleDelete = async (id) => {
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete patient');
+
+      await fetchPatients(); // Refresh list
+      setShowDeleteConfirm(null);
+    } catch (err) {
+      alert(`Error al eliminar paciente: ${err.message}`);
+    }
   };
 
   const calculateAge = (birthDate) => {
+    if (!birthDate) return 'N/A';
     const today = new Date();
     const birth = new Date(birthDate);
     let age = today.getFullYear() - birth.getFullYear();
@@ -125,9 +169,18 @@ export default function Patients() {
         )}
       </div>
 
+      {error && (
+        <div className="alert alert-danger" style={{ marginBottom: '1rem' }}>
+          {error}
+        </div>
+      )}
+
       {/* Patients Table */}
       <div className="card">
         <div className="table-container">
+          {loading ? (
+             <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando pacientes...</div>
+          ) : (
           <table>
             <thead>
               <tr>
@@ -137,21 +190,20 @@ export default function Patients() {
                 <th>Sexo</th>
                 <th>Telefono</th>
                 <th>Correo</th>
-                <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
                     <UserIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
                     <p className="text-muted">No se encontraron pacientes</p>
                   </td>
                 </tr>
               ) : (
                 filteredPatients.map(patient => (
-                  <tr key={patient.cedula}>
+                  <tr key={patient.id}>
                     <td style={{ fontWeight: 500 }}>{patient.cedula}</td>
                     <td>{patient.nombre}</td>
                     <td>{calculateAge(patient.fecha_nacimiento)} anos</td>
@@ -163,14 +215,9 @@ export default function Patients() {
                     <td>{patient.telefono}</td>
                     <td>{patient.correo}</td>
                     <td>
-                      <span className={`badge ${patient.activo ? 'badge-success' : 'badge-neutral'}`}>
-                        {patient.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <Link 
-                          to={`/pacientes/${patient.cedula}`}
+                          to={`/pacientes/${patient.id}`}
                           className="btn btn-sm btn-outline"
                           title="Ver historial"
                         >
@@ -185,11 +232,11 @@ export default function Patients() {
                             <PencilIcon style={{ width: '16px', height: '16px' }} />
                           </button>
                         )}
-                        {canDelete && patient.activo && (
+                        {canDelete && (
                           <button 
                             className="btn btn-sm btn-danger"
-                            onClick={() => setShowDeleteConfirm(patient.cedula)}
-                            title="Desactivar"
+                            onClick={() => setShowDeleteConfirm(patient.id)}
+                            title="Eliminar"
                           >
                             <TrashIcon style={{ width: '16px', height: '16px' }} />
                           </button>
@@ -201,6 +248,7 @@ export default function Patients() {
               )}
             </tbody>
           </table>
+          )}
         </div>
       </div>
 
@@ -227,7 +275,7 @@ export default function Patients() {
                       value={formData.cedula}
                       onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
                       required
-                      disabled={editingPatient}
+                      disabled={!!editingPatient} // Cedula usually shouldn't change
                     />
                   </div>
                   <div className="form-group">
@@ -315,17 +363,17 @@ export default function Patients() {
         <div className="modal-overlay" onClick={() => setShowDeleteConfirm(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div className="modal-header">
-              <h3 className="modal-title">Confirmar Desactivacion</h3>
+              <h3 className="modal-title">Confirmar Eliminacion</h3>
             </div>
             <div className="modal-body">
-              <p>Esta seguro que desea desactivar este paciente? El paciente quedara inactivo pero su historial se mantendra.</p>
+              <p>Esta seguro que desea eliminar este paciente de la base de datos?</p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(null)}>
                 Cancelar
               </button>
-              <button className="btn btn-danger" onClick={() => handleDeactivate(showDeleteConfirm)}>
-                Desactivar
+              <button className="btn btn-danger" onClick={() => handleDelete(showDeleteConfirm)}>
+                Eliminar
               </button>
             </div>
           </div>
