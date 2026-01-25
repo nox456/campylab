@@ -63,9 +63,6 @@ async function initDB() {
       );
     `);
 
-    await client.query(`DROP TABLE IF EXISTS inventario CASCADE;`);
-    await client.query(`DROP TABLE IF EXISTS consumidos CASCADE;`); // Depends on inventory
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS productos (
         id SERIAL PRIMARY KEY,
@@ -98,7 +95,10 @@ async function initDB() {
         id_paciente INTEGER NOT NULL REFERENCES pacientes(id),
         fecha DATE NOT NULL DEFAULT CURRENT_DATE,
         total DECIMAL(10, 2) NOT NULL,
-        estado VARCHAR(50) NOT NULL DEFAULT 'pendiente'
+        estado VARCHAR(50) NOT NULL DEFAULT 'pendiente',
+        prioridad VARCHAR(50) DEFAULT 'rutina',
+        observaciones TEXT,
+        activo BOOLEAN DEFAULT TRUE
       );
     `);
 
@@ -133,11 +133,12 @@ async function initDB() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS resultado (
         id SERIAL PRIMARY KEY,
-        id_orden INTEGER UNIQUE NOT NULL REFERENCES orden(id),
+        id_orden INTEGER NOT NULL REFERENCES orden(id),
         id_examen INTEGER NOT NULL REFERENCES examen(id),
         id_paciente INTEGER NOT NULL REFERENCES pacientes(id),
         id_usuario INTEGER NOT NULL REFERENCES usuarios(id),
-        fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(id_orden, id_examen)
       );
     `);
 
@@ -155,7 +156,7 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS consumidos (
         id SERIAL PRIMARY KEY,
         id_resultado INTEGER NOT NULL REFERENCES resultado(id),
-        id_consumible INTEGER NOT NULL REFERENCES inventario(id),
+        id_consumible INTEGER NOT NULL REFERENCES productos(id),
         cantidad INTEGER NOT NULL
       );
     `);

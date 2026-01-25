@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { Link, navigate } from '../router/Router';
@@ -14,43 +14,18 @@ import {
   CheckIcon,
 } from '@heroicons/react/24/outline';
 
-// Mock data
-const mockExams = [
-  { id: 1, nombre: 'Hematologia Completa', categoria: 'Hematologia', costo: 50.00 },
-  { id: 2, nombre: 'Perfil Lipidico', categoria: 'Quimica', costo: 80.00 },
-  { id: 3, nombre: 'Glicemia', categoria: 'Quimica', costo: 25.00 },
-  { id: 4, nombre: 'Urea', categoria: 'Quimica', costo: 25.00 },
-  { id: 5, nombre: 'Creatinina', categoria: 'Quimica', costo: 25.00 },
-  { id: 6, nombre: 'Perfil Tiroideo', categoria: 'Hormonas', costo: 150.00 },
-  { id: 7, nombre: 'Perfil Hepatico', categoria: 'Quimica', costo: 120.00 },
-  { id: 8, nombre: 'Examen de Orina', categoria: 'Urologia', costo: 35.00 },
-  { id: 9, nombre: 'Coprologico', categoria: 'Parasitologia', costo: 40.00 },
-  { id: 10, nombre: 'HIV', categoria: 'Serologia', costo: 60.00 },
-];
-
-const mockPatients = [
-  { cedula: 12345678, nombre: 'Maria Garcia' },
-  { cedula: 23456789, nombre: 'Jose Rodriguez' },
-  { cedula: 34567890, nombre: 'Ana Martinez' },
-  { cedula: 45678901, nombre: 'Carlos Lopez' },
-  { cedula: 56789012, nombre: 'Laura Hernandez' },
-];
-
-const initialOrders = [
-  { id: 1, paciente: { cedula: 12345678, nombre: 'Maria Garcia' }, fecha: '2025-01-18', estado: 'creado', prioridad: 'urgente', total: 150.00, pagado: 0 },
-  { id: 2, paciente: { cedula: 23456789, nombre: 'Jose Rodriguez' }, fecha: '2025-01-18', estado: 'resultados_cargados', prioridad: 'rutina', total: 280.00, pagado: 280.00 },
-  { id: 3, paciente: { cedula: 34567890, nombre: 'Ana Martinez' }, fecha: '2025-01-17', estado: 'procesando', prioridad: 'rutina', total: 95.00, pagado: 50.00 },
-  { id: 4, paciente: { cedula: 45678901, nombre: 'Carlos Lopez' }, fecha: '2025-01-17', estado: 'pagado', prioridad: 'urgente', total: 420.00, pagado: 420.00 },
-  { id: 5, paciente: { cedula: 56789012, nombre: 'Laura Hernandez' }, fecha: '2025-01-16', estado: 'entregado', prioridad: 'rutina', total: 175.00, pagado: 175.00 },
-];
-
 export default function Orders() {
   const { hasPermission } = useAuth();
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Form Resources
+  const [patients, setPatients] = useState([]);
+  const [exams, setExams] = useState([]);
 
   // Form state
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -58,19 +33,45 @@ export default function Orders() {
   const [selectedExams, setSelectedExams] = useState([]);
   const [prioridad, setPrioridad] = useState('rutina');
   const [observaciones, setObservaciones] = useState('');
+  
+  // Fetch Orders
+  const fetchOrders = async () => {
+      try {
+          const res = await fetch('/api/orders');
+          if (!res.ok) throw new Error('Error fetching orders');
+          const data = await res.json();
+          setOrders(data);
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
+  useEffect(() => {
+      fetchOrders();
+  }, []);
+
+  // Fetch Resources when modal opens
+  useEffect(() => {
+      if (showCreateModal) {
+          fetch('/api/patients').then(res => res.json()).then(setPatients).catch(console.error);
+          fetch('/api/exams').then(res => res.json()).then(setExams).catch(console.error);
+      }
+  }, [showCreateModal]);
 
   const canCreate = hasPermission('orders', 'create');
 
   const filteredOrders = orders.filter(o => {
+    // Note: ID in DB is integer, o.id might be number. o.paciente is object.
+    const searchLow = searchTerm.toLowerCase();
     const matchesSearch = 
       o.id.toString().includes(searchTerm) ||
-      o.paciente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.paciente.cedula.toString().includes(searchTerm);
+      o.paciente_nombre.toLowerCase().includes(searchLow) ||
+      o.paciente_cedula.toString().includes(searchTerm);
     const matchesStatus = !statusFilter || o.estado === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const filteredPatients = mockPatients.filter(p =>
+  const filteredPatients = patients.filter(p =>
     p.cedula.toString().includes(patientSearch) ||
     p.nombre.toLowerCase().includes(patientSearch.toLowerCase())
   );
@@ -78,9 +79,9 @@ export default function Orders() {
   const getStatusBadge = (status) => {
     const badges = {
       creado: { class: 'badge badge-neutral', label: 'Creado' },
+      pendiente: { class: 'badge badge-neutral', label: 'Pendiente' },
       procesando: { class: 'badge badge-info', label: 'Procesando' },
-      resultados_cargados: { class: 'badge badge-warning', label: 'Resultados Cargados' },
-      inventario_descontado: { class: 'badge badge-info', label: 'Inventario Descontado' },
+      resultados_cargados: { class: 'badge badge-warning', label: 'Resultados' },
       pagado: { class: 'badge badge-success', label: 'Pagado' },
       entregado: { class: 'status-pill status-completed', label: 'Entregado' },
       cancelado: { class: 'status-pill status-cancelled', label: 'Cancelado' },
@@ -90,8 +91,9 @@ export default function Orders() {
 
   const calculateTotal = () => {
     return selectedExams.reduce((sum, examId) => {
-      const exam = mockExams.find(e => e.id === examId);
-      return sum + (exam?.costo || 0);
+      const exam = exams.find(e => e.id === examId);
+      // Backend should confirm price, but frontend estimation is good for UI
+      return sum + (Number(exam?.precio) || 0);
     }, 0);
   };
 
@@ -103,22 +105,36 @@ export default function Orders() {
     );
   };
 
-  const handleCreateOrder = () => {
+  const handleCreateOrder = async () => {
     if (!selectedPatient || selectedExams.length === 0) return;
 
-    const newOrder = {
-      id: orders.length + 1,
-      paciente: selectedPatient,
-      fecha: new Date().toISOString().split('T')[0],
-      estado: 'creado',
-      prioridad,
-      total: calculateTotal(),
-      pagado: 0,
-    };
+    try {
+        const payload = {
+            pacienteId: selectedPatient.id,
+            exams: selectedExams,
+            prioridad,
+            observaciones,
+            total: calculateTotal()
+        };
 
-    setOrders([newOrder, ...orders]);
-    handleCloseModal();
-    navigate(`/ordenes/${newOrder.id}`);
+        const res = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Error creating order');
+        
+        const newOrder = await res.json();
+        // Refresh list
+        await fetchOrders();
+        handleCloseModal();
+        // Assuming navigate works.
+        // navigate(`/ordenes/${newOrder.id}`); 
+        // For now, staying on list is fine or simple alert
+    } catch (e) {
+        alert(e.message);
+    }
   };
 
   const handleCloseModal = () => {
@@ -173,7 +189,7 @@ export default function Orders() {
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="">Todos</option>
-                <option value="creado">Creado</option>
+                <option value="pendiente">Pendiente</option>
                 <option value="procesando">Procesando</option>
                 <option value="resultados_cargados">Resultados Cargados</option>
                 <option value="pagado">Pagado</option>
@@ -196,7 +212,6 @@ export default function Orders() {
                 <th>Prioridad</th>
                 <th>Estado</th>
                 <th>Total</th>
-                <th>Pagado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -211,17 +226,19 @@ export default function Orders() {
               ) : (
                 filteredOrders.map(order => {
                   const statusBadge = getStatusBadge(order.estado);
-                  const pendiente = order.total - order.pagado;
+                  // Ensure numeric values
+                  const total = Number(order.total) || 0;
+                  
                   return (
                     <tr key={order.id}>
                       <td style={{ fontWeight: 600 }}>#{order.id.toString().padStart(4, '0')}</td>
                       <td>
                         <div>
-                          <p style={{ fontWeight: 500 }}>{order.paciente.nombre}</p>
-                          <p className="text-xs text-muted">CI: {order.paciente.cedula}</p>
+                          <p style={{ fontWeight: 500 }}>{order.paciente_nombre}</p>
+                          <p className="text-xs text-muted">CI: {order.paciente_cedula}</p>
                         </div>
                       </td>
-                      <td>{order.fecha}</td>
+                      <td>{order.fecha ? new Date(order.fecha).toLocaleDateString() : '-'}</td>
                       <td>
                         <span className={`badge ${order.prioridad === 'urgente' ? 'badge-danger' : 'badge-neutral'}`}>
                           {order.prioridad === 'urgente' ? 'Urgente' : 'Rutina'}
@@ -230,17 +247,7 @@ export default function Orders() {
                       <td>
                         <span className={statusBadge.class}>{statusBadge.label}</span>
                       </td>
-                      <td style={{ fontWeight: 500 }}>${order.total.toFixed(2)}</td>
-                      <td>
-                        <span className={pendiente > 0 ? 'text-muted' : ''} style={{ color: pendiente > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                          ${order.pagado.toFixed(2)}
-                          {pendiente > 0 && (
-                            <span className="text-xs" style={{ display: 'block', color: 'var(--danger)' }}>
-                              Pendiente: ${pendiente.toFixed(2)}
-                            </span>
-                          )}
-                        </span>
-                      </td>
+                      <td style={{ fontWeight: 500 }}>${total.toFixed(2)}</td>
                       <td>
                         <Link to={`/ordenes/${order.id}`} className="btn btn-sm btn-outline">
                           <EyeIcon style={{ width: '16px', height: '16px' }} />
@@ -294,7 +301,7 @@ export default function Orders() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="Buscar paciente por cedula o nombre..."
+                      placeholder="Buscar paciente por cedula o nombre (ENTER para filtrar)"
                       value={patientSearch}
                       onChange={(e) => setPatientSearch(e.target.value)}
                       style={{ marginBottom: '0.5rem' }}
@@ -308,7 +315,7 @@ export default function Orders() {
                       }}>
                         {filteredPatients.map(patient => (
                           <button
-                            key={patient.cedula}
+                            key={patient.id}
                             className="w-full"
                             style={{
                               display: 'flex',
@@ -345,7 +352,7 @@ export default function Orders() {
                   gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
                   gap: '0.5rem',
                 }}>
-                  {mockExams.map(exam => {
+                  {exams.map(exam => {
                     const isSelected = selectedExams.includes(exam.id);
                     return (
                       <button
@@ -365,12 +372,10 @@ export default function Orders() {
                       >
                         <div>
                           <p style={{ fontWeight: 500, fontSize: '0.875rem' }}>{exam.nombre}</p>
-                          <p className="text-xs text-muted">{exam.categoria}</p>
+                          <p className="text-xs text-muted">${Number(exam.precio).toFixed(2)}</p>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{ fontWeight: 600, color: 'var(--primary)' }}>
-                            ${exam.costo.toFixed(2)}
-                          </span>
+                          
                           {isSelected && (
                             <CheckIcon style={{ width: '18px', height: '18px', color: 'var(--primary)' }} />
                           )}

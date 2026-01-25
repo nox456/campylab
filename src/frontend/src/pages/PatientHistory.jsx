@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { Link } from '../router/Router';
 import {
@@ -14,77 +14,56 @@ import {
   EyeIcon,
 } from '@heroicons/react/24/outline';
 
-// Mock patient data
-const mockPatient = {
-  cedula: 12345678,
-  nombre: 'Maria Garcia',
-  fecha_nacimiento: '1985-03-15',
-  telefono: '0412-1234567',
-  direccion: 'Calle Principal 123, Caracas',
-  correo: 'maria@email.com',
-  sexo: 'F',
-  activo: true,
-};
-
-// Mock orders history
-const mockOrders = [
-  {
-    id: 1,
-    fecha: '2025-01-18',
-    examenes: ['Hematologia Completa', 'Perfil Lipidico'],
-    estado: 'pendiente',
-    total: 150.00,
-    pagado: false,
-  },
-  {
-    id: 2,
-    fecha: '2025-01-10',
-    examenes: ['Glicemia', 'Urea', 'Creatinina'],
-    estado: 'completado',
-    total: 95.00,
-    pagado: true,
-  },
-  {
-    id: 3,
-    fecha: '2024-12-15',
-    examenes: ['Perfil Tiroideo'],
-    estado: 'completado',
-    total: 180.00,
-    pagado: true,
-  },
-  {
-    id: 4,
-    fecha: '2024-11-20',
-    examenes: ['Hematologia Completa', 'Orina'],
-    estado: 'completado',
-    total: 120.00,
-    pagado: true,
-  },
-  {
-    id: 5,
-    fecha: '2024-10-05',
-    examenes: ['Perfil Hepatico'],
-    estado: 'completado',
-    total: 200.00,
-    pagado: true,
-  },
-];
-
 export default function PatientHistory({ patientId }) {
-  const [patient] = useState(mockPatient);
-  const [orders] = useState(mockOrders);
+  const [patient, setPatient] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+     if (patientId) {
+         setLoading(true);
+         // 1. Fetch Patient Info (re-used from Patients API or fetched via Patient ID)
+         // Actually better to have a single endpoint?
+         // We can do parallel fetch
+         Promise.all([
+             fetch(`/api/patients/${patientId}`).then(res => res.json()),
+             fetch(`/api/orders?patientId=${patientId}`).then(res => res.json())
+         ])
+         .then(([patientData, ordersData]) => {
+             setPatient(patientData);
+             setOrders(ordersData);
+             setLoading(false);
+         })
+         .catch(err => {
+             console.error(err);
+             setLoading(false);
+         });
+     }
+  }, [patientId]);
+
+  if (loading || !patient) {
+      return (
+          <Layout title="Historial del Paciente">
+              <div style={{ textAlign: 'center', padding: '3rem' }}>Cargando historial...</div>
+          </Layout>
+      );
+  }
 
   const getStatusBadge = (status) => {
     const badges = {
+      creado: { class: 'badge badge-neutral', label: 'Creado' },
       pendiente: { class: 'status-pill status-pending', label: 'Pendiente' },
       procesando: { class: 'badge badge-info', label: 'Procesando' },
-      completado: { class: 'status-pill status-completed', label: 'Completado' },
+      resultados_cargados: { class: 'badge badge-warning', label: 'Resultados' },
+      entregado: { class: 'status-pill status-completed', label: 'Entregado' },
+      pagado: { class: 'badge badge-success', label: 'Pagado' },
       cancelado: { class: 'status-pill status-cancelled', label: 'Cancelado' },
     };
     return badges[status] || { class: 'badge badge-neutral', label: status };
   };
 
   const calculateAge = (birthDate) => {
+    if (!birthDate) return 0;
     const today = new Date();
     const birth = new Date(birthDate);
     let age = today.getFullYear() - birth.getFullYear();
@@ -96,7 +75,12 @@ export default function PatientHistory({ patientId }) {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    // Handle YYYY-MM-DD or ISO
     const date = new Date(dateString);
+    // Adjust for timezone offset if it's strictly YYYY-MM-DD coming from DB without time
+    // For simplicity using locale date, but ideally handle timezone correctly if needed.
+    // If backend returns '2025-01-20', simple parsing works fine in most browsers or use UTC split.
     return date.toLocaleDateString('es-VE', {
       year: 'numeric',
       month: 'long',
@@ -150,14 +134,14 @@ export default function PatientHistory({ patientId }) {
               <PhoneIcon style={{ width: '20px', height: '20px', color: 'var(--muted-foreground)' }} />
               <div>
                 <p className="text-xs text-muted">Telefono</p>
-                <p className="text-sm font-medium">{patient.telefono}</p>
+                <p className="text-sm font-medium">{patient.telefono || 'No registrado'}</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <EnvelopeIcon style={{ width: '20px', height: '20px', color: 'var(--muted-foreground)' }} />
               <div>
                 <p className="text-xs text-muted">Correo</p>
-                <p className="text-sm font-medium">{patient.correo}</p>
+                <p className="text-sm font-medium">{patient.email || 'No registrado'}</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -196,14 +180,14 @@ export default function PatientHistory({ patientId }) {
                   padding: '1rem',
                   backgroundColor: 'var(--muted)',
                   borderRadius: 'var(--radius)',
-                  borderLeft: `3px solid ${order.estado === 'completado' ? 'var(--success)' : 'var(--warning)'}`,
+                  borderLeft: `3px solid ${order.estado === 'entregado' ? 'var(--success)' : 'var(--warning)'}`,
                 }}
               >
                 {/* Timeline dot */}
                 <div style={{
                   width: '12px',
                   height: '12px',
-                  backgroundColor: order.estado === 'completado' ? 'var(--success)' : 'var(--warning)',
+                  backgroundColor: order.estado === 'entregado' || order.estado === 'pagado' ? 'var(--success)' : 'var(--warning)',
                   borderRadius: '50%',
                   marginTop: '0.25rem',
                   flexShrink: 0,
@@ -220,28 +204,16 @@ export default function PatientHistory({ patientId }) {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span className={statusBadge.class}>{statusBadge.label}</span>
-                      <span className={`badge ${order.pagado ? 'badge-success' : 'badge-danger'}`}>
-                        {order.pagado ? 'Pagado' : 'Pendiente pago'}
+                      <span className={`badge ${order.pagado > 0 && order.pagado >= order.total ? 'badge-success' : 'badge-danger'}`}>
+                        {order.pagado > 0 && order.pagado >= order.total ? 'Pagado' : 'Pendiente pago'}
                       </span>
                     </div>
                   </div>
 
-                  {/* Exams list */}
-                  <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {order.examenes.map((examen, i) => (
-                      <span 
-                        key={i}
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          backgroundColor: 'var(--card)',
-                          borderRadius: 'var(--radius)',
-                          fontSize: '0.8125rem',
-                          border: '1px solid var(--border)',
-                        }}
-                      >
-                        {examen}
-                      </span>
-                    ))}
+                  {/* Summary */}
+                  <div style={{ marginTop: '0.75rem' }}>
+                      <span className="text-sm text-muted">Prioridad: </span>
+                      <strong className="text-sm capitalize">{order.prioridad}</strong>
                   </div>
 
                   {/* Footer */}
@@ -254,7 +226,7 @@ export default function PatientHistory({ patientId }) {
                     borderTop: '1px solid var(--border)',
                   }}>
                     <p style={{ fontWeight: 600, color: 'var(--foreground)' }}>
-                      Total: ${order.total.toFixed(2)}
+                      Total: ${Number(order.total).toFixed(2)}
                     </p>
                     <Link to={`/ordenes/${order.id}`} className="btn btn-sm btn-outline">
                       <EyeIcon style={{ width: '16px', height: '16px' }} />

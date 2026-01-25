@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { Link } from '../router/Router';
@@ -16,103 +16,43 @@ import {
   EyeIcon,
 } from '@heroicons/react/24/outline';
 
-// Mock pending orders for results
-const mockPendingOrders = [
-  {
-    id: 1,
-    paciente: { cedula: 12345678, nombre: 'Maria Garcia', sexo: 'F', edad: 39 },
-    fecha: '2025-01-18',
-    prioridad: 'urgente',
-    examenes: [
-      { id: 1, nombre: 'Hematologia Completa', estado: 'pendiente' },
-      { id: 2, nombre: 'Perfil Lipidico', estado: 'pendiente' },
-    ],
-  },
-  {
-    id: 3,
-    paciente: { cedula: 34567890, nombre: 'Ana Martinez', sexo: 'F', edad: 34 },
-    fecha: '2025-01-17',
-    prioridad: 'rutina',
-    examenes: [
-      { id: 3, nombre: 'Glicemia', estado: 'cargado' },
-      { id: 4, nombre: 'Urea', estado: 'pendiente' },
-      { id: 5, nombre: 'Creatinina', estado: 'pendiente' },
-    ],
-  },
-  {
-    id: 6,
-    paciente: { cedula: 67890123, nombre: 'Miguel Torres', sexo: 'M', edad: 52 },
-    fecha: '2025-01-18',
-    prioridad: 'urgente',
-    examenes: [
-      { id: 6, nombre: 'Perfil Hepatico', estado: 'pendiente' },
-    ],
-  },
-  {
-    id: 7,
-    paciente: { cedula: 78901234, nombre: 'Sofia Ramirez', sexo: 'F', edad: 28 },
-    fecha: '2025-01-17',
-    prioridad: 'rutina',
-    examenes: [
-      { id: 7, nombre: 'Perfil Tiroideo', estado: 'pendiente' },
-    ],
-  },
-];
-
-// Mock exam parameters for loading results
-const examParameters = {
-  'Hematologia Completa': [
-    { nombre: 'Hemoglobina', unidad: 'g/dL', min: 12.0, max: 16.0 },
-    { nombre: 'Hematocrito', unidad: '%', min: 36, max: 48 },
-    { nombre: 'Globulos Blancos', unidad: '/mm3', min: 4500, max: 11000 },
-    { nombre: 'Plaquetas', unidad: '/mm3', min: 150000, max: 400000 },
-    { nombre: 'Globulos Rojos', unidad: 'mill/mm3', min: 4.0, max: 5.5 },
-    { nombre: 'VCM', unidad: 'fL', min: 80, max: 100 },
-    { nombre: 'HCM', unidad: 'pg', min: 27, max: 31 },
-    { nombre: 'CHCM', unidad: 'g/dL', min: 32, max: 36 },
-  ],
-  'Perfil Lipidico': [
-    { nombre: 'Colesterol Total', unidad: 'mg/dL', min: 0, max: 200 },
-    { nombre: 'Trigliceridos', unidad: 'mg/dL', min: 0, max: 150 },
-    { nombre: 'HDL', unidad: 'mg/dL', min: 40, max: 60 },
-    { nombre: 'LDL', unidad: 'mg/dL', min: 0, max: 100 },
-    { nombre: 'VLDL', unidad: 'mg/dL', min: 0, max: 30 },
-  ],
-  'Glicemia': [
-    { nombre: 'Glucosa en Ayunas', unidad: 'mg/dL', min: 70, max: 100 },
-  ],
-  'Urea': [
-    { nombre: 'Urea', unidad: 'mg/dL', min: 15, max: 45 },
-  ],
-  'Creatinina': [
-    { nombre: 'Creatinina', unidad: 'mg/dL', min: 0.7, max: 1.3 },
-  ],
-  'Perfil Hepatico': [
-    { nombre: 'Bilirrubina Total', unidad: 'mg/dL', min: 0.1, max: 1.2 },
-    { nombre: 'Bilirrubina Directa', unidad: 'mg/dL', min: 0, max: 0.3 },
-    { nombre: 'TGO (AST)', unidad: 'U/L', min: 5, max: 40 },
-    { nombre: 'TGP (ALT)', unidad: 'U/L', min: 7, max: 56 },
-    { nombre: 'Fosfatasa Alcalina', unidad: 'U/L', min: 44, max: 147 },
-    { nombre: 'GGT', unidad: 'U/L', min: 9, max: 48 },
-  ],
-  'Perfil Tiroideo': [
-    { nombre: 'TSH', unidad: 'mIU/L', min: 0.4, max: 4.0 },
-    { nombre: 'T4 Libre', unidad: 'ng/dL', min: 0.8, max: 1.8 },
-    { nombre: 'T3 Total', unidad: 'ng/dL', min: 80, max: 200 },
-  ],
-};
-
 export default function Results() {
   const { user, hasPermission } = useAuth();
-  const [orders, setOrders] = useState(mockPendingOrders);
+  const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pendiente'); // Default to pending
   const [showFilters, setShowFilters] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedExam, setSelectedExam] = useState(null);
   const [resultValues, setResultValues] = useState({});
+  const [examParams, setExamParams] = useState([]);
+  const [loadingParams, setLoadingParams] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const canLoadResults = hasPermission('results', 'create') || hasPermission('results', 'update');
+
+  useEffect(() => {
+      if (successMessage) {
+          const timer = setTimeout(() => setSuccessMessage(''), 3000);
+          return () => clearTimeout(timer);
+      }
+  }, [successMessage]);
+
+  const fetchPendingOrders = async () => {
+      try {
+          const res = await fetch('/api/results/pending');
+          if (!res.ok) throw new Error('Error fetching pending');
+          const data = await res.json();
+          setOrders(data);
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
+  useEffect(() => {
+      fetchPendingOrders();
+  }, []);
 
   const filteredOrders = orders.filter(o => {
     const matchesSearch = 
@@ -120,7 +60,15 @@ export default function Results() {
       o.paciente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.paciente.cedula.toString().includes(searchTerm);
     const matchesPriority = !priorityFilter || o.prioridad === priorityFilter;
-    return matchesSearch && matchesPriority;
+    
+    let matchesStatus = true;
+    if (statusFilter === 'pendiente') {
+        matchesStatus = o.estado === 'pendiente' || o.estado === 'procesando' || o.estado === 'creado';
+    } else if (statusFilter === 'completado') {
+        matchesStatus = o.estado === 'resultados_cargados' || o.estado === 'entregado' || o.estado === 'pagado';
+    }
+
+    return matchesSearch && matchesPriority && matchesStatus;
   });
 
   const urgentCount = orders.filter(o => o.prioridad === 'urgente').length;
@@ -128,32 +76,68 @@ export default function Results() {
     acc + o.examenes.filter(e => e.estado === 'pendiente').length, 0
   );
 
-  const handleOpenResultsModal = (order, exam) => {
+  const handleOpenResultsModal = async (order, exam) => {
     setSelectedOrder(order);
     setSelectedExam(exam);
     setResultValues({});
+    setLoadingParams(true);
+    
+    try {
+        const res = await fetch(`/api/results/exam-parameters/${exam.id}`);
+        if (!res.ok) throw new Error('Error fetching params');
+        const params = await res.json();
+        setExamParams(params);
+        
+        // Populate initial values if needed (empty for new results)
+        const initial = {};
+        params.forEach(p => initial[p.nombre] = '');
+        setResultValues(initial);
+    } catch(e) {
+        // alert("Error cargando parametros del examen"); 
+        console.error(e);
+        handleCloseModal();
+    } finally {
+        setLoadingParams(false);
+    }
   };
 
   const handleCloseModal = () => {
     setSelectedOrder(null);
     setSelectedExam(null);
     setResultValues({});
+    setExamParams([]);
   };
 
-  const handleSaveResults = () => {
-    // Update the exam status
-    setOrders(orders.map(o => {
-      if (o.id === selectedOrder.id) {
-        return {
-          ...o,
-          examenes: o.examenes.map(e => 
-            e.id === selectedExam.id ? { ...e, estado: 'cargado' } : e
-          ),
+  const handleSaveResults = async () => {
+    try {
+        // Construct details array
+        const detalles = examParams.map(p => ({
+            nombre: p.nombre,
+            unidad: p.unidad,
+            valor: resultValues[p.nombre]
+        }));
+
+        const payload = {
+            ordenId: selectedOrder.id,
+            examenId: selectedExam.id,
+            pacienteId: selectedOrder.paciente.id,
+            detalles
         };
-      }
-      return o;
-    }));
-    handleCloseModal();
+
+        const res = await fetch('/api/results', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Error saving results');
+
+        await fetchPendingOrders();
+        handleCloseModal();
+        setSuccessMessage('Resultados guardados exitosamente');
+    } catch(e) {
+        console.error(e);
+    }
   };
 
   const isValueOutOfRange = (value, min, max) => {
@@ -163,6 +147,21 @@ export default function Results() {
 
   return (
     <Layout title="Resultados">
+      {/* Success Notification */}
+      {successMessage && (
+          <div className="alert alert-success" style={{ 
+              position: 'fixed', 
+              top: '20px', 
+              right: '20px', 
+              zIndex: 1000,
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              animation: 'fadeIn 0.3s ease-in-out'
+          }}>
+              <CheckIcon style={{ width: '20px', height: '20px', marginRight: '0.5rem' }} />
+              {successMessage}
+          </div>
+      )}
+
       {/* Summary Cards */}
       <div style={{ 
         display: 'grid', 
@@ -170,11 +169,12 @@ export default function Results() {
         gap: '1rem',
         marginBottom: '1.5rem',
       }}>
+        {/* ... (Cards remain same) ... */}
         <div className="stat-card">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <p className="stat-card-value">{orders.length}</p>
-              <p className="stat-card-label">Ordenes Pendientes</p>
+              <p className="stat-card-label">Total Ordenes</p>
             </div>
             <div className="stat-card-icon" style={{ backgroundColor: 'rgba(8, 145, 178, 0.1)' }}>
               <ClipboardDocumentCheckIcon style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
@@ -198,7 +198,7 @@ export default function Results() {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <p className="stat-card-value">{pendingCount}</p>
-              <p className="stat-card-label">Examenes por Procesar</p>
+              <p className="stat-card-label">Examenes Pendientes</p>
             </div>
             <div className="stat-card-icon" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
               <BeakerIcon style={{ width: '24px', height: '24px', color: 'var(--warning)' }} />
@@ -234,6 +234,18 @@ export default function Results() {
       {showFilters && (
         <div className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+             <div className="form-group" style={{ minWidth: '200px' }}>
+              <label className="form-label">Estado Orden</label>
+              <select
+                className="form-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="">Todas</option>
+                <option value="pendiente">Pendientes / En Proceso</option>
+                <option value="completado">Completadas / Entregadas</option>
+              </select>
+            </div>
             <div className="form-group" style={{ minWidth: '200px' }}>
               <label className="form-label">Prioridad</label>
               <select
@@ -351,92 +363,84 @@ export default function Results() {
               </button>
             </div>
             <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-              {/* Patient Info */}
-              <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
-                <strong>Paciente:</strong> {selectedOrder.paciente.nombre} | 
-                CI: {selectedOrder.paciente.cedula} | 
-                {selectedOrder.paciente.sexo === 'M' ? ' Masculino' : ' Femenino'}, {selectedOrder.paciente.edad} anos
-              </div>
+              
+              {loadingParams ? (
+                  <div className="text-center p-4">Cargando parametros...</div>
+              ) : (
+                  <>
+                  {/* Patient Info */}
+                  <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
+                    <strong>Paciente:</strong> {selectedOrder.paciente.nombre} | 
+                    CI: {selectedOrder.paciente.cedula} | 
+                    {selectedOrder.paciente.sexo === 'M' ? ' Masculino' : ' Femenino'}, {selectedOrder.paciente.edad} anos
+                  </div>
 
-              {/* Parameters Form */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {(examParameters[selectedExam.nombre] || []).map((param, idx) => {
-                  const value = resultValues[param.nombre] || '';
-                  const outOfRange = value && isValueOutOfRange(value, param.min, param.max);
-                  
-                  return (
-                    <div 
-                      key={idx}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 120px 1fr',
-                        gap: '1rem',
-                        alignItems: 'center',
-                        padding: '0.75rem',
-                        backgroundColor: outOfRange ? 'rgba(239, 68, 68, 0.1)' : 'var(--muted)',
-                        borderRadius: 'var(--radius)',
-                        border: outOfRange ? '1px solid var(--danger)' : '1px solid transparent',
-                      }}
-                    >
-                      <div>
-                        <p style={{ fontWeight: 500, fontSize: '0.875rem' }}>{param.nombre}</p>
-                        <p className="text-xs text-muted">
-                          Ref: {param.min} - {param.max} {param.unidad}
-                        </p>
-                      </div>
-                      <div>
-                        <input
-                          type="number"
-                          className="form-input"
-                          placeholder="Valor"
-                          step="0.01"
-                          value={value}
-                          onChange={(e) => setResultValues({
-                            ...resultValues,
-                            [param.nombre]: e.target.value,
-                          })}
-                          style={{
-                            borderColor: outOfRange ? 'var(--danger)' : undefined,
-                          }}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span className="text-sm text-muted">{param.unidad}</span>
-                        {value && (
-                          <span className={`badge ${outOfRange ? 'badge-danger' : 'badge-success'}`}>
-                            {outOfRange ? 'Fuera de rango' : 'Normal'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* File Upload (optional) */}
-              <div style={{ marginTop: '1.5rem' }}>
-                <label className="form-label">Archivos Adjuntos (opcional)</label>
-                <div style={{
-                  border: '2px dashed var(--border)',
-                  borderRadius: 'var(--radius)',
-                  padding: '2rem',
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                }}>
-                  <DocumentArrowUpIcon style={{ width: '32px', height: '32px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
-                  <p className="text-sm text-muted">
-                    Arrastra archivos aqui o haz clic para seleccionar
-                  </p>
-                  <p className="text-xs text-muted">
-                    Imagenes de microscopia, documentos, etc.
-                  </p>
-                </div>
-              </div>
-
-              {/* Digital Signature Notice */}
-              <div className="alert alert-warning" style={{ marginTop: '1rem' }}>
-                Al guardar, los resultados quedaran registrados con su firma digital: <strong>{user?.nombre}</strong>
-              </div>
+                  {/* Parameters Form */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {examParams.length === 0 ? (
+                        <p className="text-muted text-center">No hay parametros configurados para este examen.</p>
+                    ) : (
+                        examParams.map((param, idx) => {
+                        const value = resultValues[param.nombre] || '';
+                        const outOfRange = value && isValueOutOfRange(value, param.min, param.max);
+                        
+                        return (
+                            <div 
+                            key={idx}
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 120px 1fr',
+                                gap: '1rem',
+                                alignItems: 'center',
+                                padding: '0.75rem',
+                                backgroundColor: outOfRange ? 'rgba(239, 68, 68, 0.1)' : 'var(--muted)',
+                                borderRadius: 'var(--radius)',
+                                border: outOfRange ? '1px solid var(--danger)' : '1px solid transparent',
+                            }}
+                            >
+                            <div>
+                                <p style={{ fontWeight: 500, fontSize: '0.875rem' }}>{param.nombre}</p>
+                                <p className="text-xs text-muted">
+                                Ref: {param.min} - {param.max} {param.unidad}
+                                </p>
+                            </div>
+                            <div>
+                                <input
+                                type="number"
+                                className="form-input"
+                                placeholder="Valor"
+                                step="any"
+                                value={value}
+                                onChange={(e) => setResultValues({
+                                    ...resultValues,
+                                    [param.nombre]: e.target.value,
+                                })}
+                                style={{
+                                    borderColor: outOfRange ? 'var(--danger)' : undefined,
+                                }}
+                                required
+                                />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span className="text-sm text-muted">{param.unidad}</span>
+                                {value && (
+                                <span className={`badge ${outOfRange ? 'badge-danger' : 'badge-success'}`}>
+                                    {outOfRange ? 'Fuera de rango' : 'Normal'}
+                                </span>
+                                )}
+                            </div>
+                            </div>
+                        );
+                        })
+                    )}
+                  </div>
+                
+                  {/* Digital Signature Notice */}
+                  <div className="alert alert-warning" style={{ marginTop: '1rem' }}>
+                    Al guardar, los resultados quedaran registrados con su firma digital: <strong>{user?.nombre}</strong>
+                  </div>
+                </>
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={handleCloseModal}>
@@ -445,6 +449,7 @@ export default function Results() {
               <button 
                 className="btn btn-primary"
                 onClick={handleSaveResults}
+                disabled={loadingParams || examParams.length === 0}
               >
                 <CheckIcon style={{ width: '18px', height: '18px' }} />
                 Guardar y Validar
