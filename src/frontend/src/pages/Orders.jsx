@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
 import { Link, navigate } from '../router/Router';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
   EyeIcon,
+  PrinterIcon,
   XMarkIcon,
   FunnelIcon,
   ClipboardDocumentListIcon,
   CheckIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { useToast } from '../context/ToastContext';
 
@@ -35,6 +38,10 @@ export default function Orders() {
   const [selectedExams, setSelectedExams] = useState([]);
   const [prioridad, setPrioridad] = useState('rutina');
   const [observaciones, setObservaciones] = useState('');
+
+  // Confirmation Modals
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [selectedOrderForEmail, setSelectedOrderForEmail] = useState(null);
   
   // Fetch Orders
   const fetchOrders = async () => {
@@ -158,6 +165,35 @@ export default function Orders() {
     setObservaciones('');
   };
 
+  const handleSendEmailRequest = (orderId) => {
+    setSelectedOrderForEmail(orderId);
+    setShowEmailModal(true);
+  };
+
+  const handleConfirmSendEmail = async () => {
+    if (!selectedOrderForEmail) return;
+    try {
+        showToast('Enviando correo...', 'info');
+        const res = await fetch(`/api/pdf/email/${selectedOrderForEmail}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        });
+        
+        const data = await res.json();
+        if (!res.ok) {
+            // Show specific backend message in toast and stop
+            showToast(data.error || 'Error enviando correo', 'error');
+            return; 
+        }
+        
+        showToast('Correo enviado exitosamente', 'success');
+    } catch(e) {
+        // Network errors or others
+        showToast(e.message, 'error');
+    }
+  };
+
   return (
     <Layout title="Ordenes">
       {/* Header Actions */}
@@ -247,10 +283,30 @@ export default function Orders() {
                       </td>
                       <td style={{ fontWeight: 500 }}>${total.toFixed(2)}</td>
                       <td>
-                        <Link to={`/ordenes/${order.id}`} className="btn btn-sm btn-outline">
-                          <EyeIcon style={{ width: '16px', height: '16px' }} />
-                          Ver
-                        </Link>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <Link to={`/ordenes/${order.id}`} className="btn btn-sm btn-outline">
+                            <EyeIcon style={{ width: '16px', height: '16px' }} />
+                            Ver
+                          </Link>
+                          {order.has_results && (
+                            <>
+                              <button 
+                                className="btn btn-sm btn-outline"
+                                onClick={() => window.open(`/api/pdf/result/${order.id}`, '_blank')}
+                                title="Exportar PDF"
+                              >
+                                <PrinterIcon style={{ width: '16px', height: '16px' }} />
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-outline"
+                                onClick={() => handleSendEmailRequest(order.id)}
+                                title="Enviar por Correo"
+                              >
+                                <EnvelopeIcon style={{ width: '16px', height: '16px' }} />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -260,6 +316,17 @@ export default function Orders() {
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        onConfirm={handleConfirmSendEmail}
+        title="Enviar Resultados por Correo"
+        message="¿Está seguro de enviar los resultados en PDF al correo del paciente?"
+        confirmText="Enviar Correo"
+        confirmStyle="primary"
+      />
 
       {/* Create Order Modal */}
       {showCreateModal && (

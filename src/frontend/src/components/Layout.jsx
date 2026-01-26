@@ -97,17 +97,15 @@ export default function Layout({ children, title }) {
           alignItems: 'center',
           gap: '0.75rem'
         }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            backgroundColor: 'var(--primary)',
-            borderRadius: 'var(--radius)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <BeakerIcon style={{ width: '24px', height: '24px', color: 'white' }} />
-          </div>
+          <img 
+            src="/icon.png" 
+            alt="Logo" 
+            style={{ 
+              width: '32px', 
+              height: '32px', 
+              objectFit: 'contain' 
+            }} 
+          />
           <div>
             <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--foreground)' }}>
               CampyLab

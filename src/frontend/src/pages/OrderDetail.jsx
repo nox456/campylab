@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
 import { Link } from '../router/Router';
 import {
@@ -13,6 +14,7 @@ import {
   BeakerIcon,
   CurrencyDollarIcon,
   ArchiveBoxIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { useToast } from '../context/ToastContext';
 
@@ -34,6 +36,7 @@ export default function OrderDetail({ orderId }) {
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [loading, setLoading] = useState(true);
   const [exchangeRate, setExchangeRate] = useState(0);
+  const [showEmailModal, setShowEmailModal] = useState(false);
 
   const fetchOrderData = () => {
     if (orderId) {
@@ -90,11 +93,10 @@ export default function OrderDetail({ orderId }) {
 
   // Ensure numeric
   const total = Number(order.total) || 0;
-  // Use local calculation for immediate feedback or backend 'pagado'
+  // Use local calculation for immediate feedback
   const totalPaid = payments.reduce((acc, p) => acc + parseFloat(p.monto), 0);
-  // Fallback to order.pagado if payments not loaded yet (initial load?)
-  // Actually, fetchPayments loads on tab switch. If we want global status, we need to fetch payments always or trust backend order.pagado.
-  // Let's trust order.pagado since we reload order data.
+  
+  // Status Logic
   const pagado = Number(order.pagado) || 0; 
   const pendiente = total - pagado;
   
@@ -102,34 +104,40 @@ export default function OrderDetail({ orderId }) {
   const canRegisterPayment = hasPermission('payments', 'create');
   const canManageInventory = hasPermission('inventory', 'update');
 
-  const getStatusIndex = (status) => {
-    const index = statusSteps.findIndex(s => s.key === status);
-    return index >= 0 ? index : 0;
+  // Logic: Results loaded?
+  const hasResults = order.exams && order.exams.some(e => e.resultados && e.resultados.length > 0);
+  // Logic: Paid?
+  const isPaid = pendiente <= 0.01;
+
+  // Custom visual status index
+  const getVisualStatusIndex = () => {
+      if (order.estado === 'entregado') return 3;
+      
+      // If Results are NOT loaded, stay at step 0 (Creado), even if paid.
+      // This enforces the workflow: Results -> Payment/Delivery.
+      if (!hasResults) return 0;
+      
+      // If Results exist:
+      if (isPaid) return 2; // Paid & Results -> Ready for delivery
+      
+      // If results exist but not paid
+      return 1;
   };
 
-  const currentStatusIndex = getStatusIndex(order.estado);
+  const currentStatusIndex = getVisualStatusIndex();
 
-  const isValueOutOfRange = (valor, min, max) => {
-    // If no ranges, return false
-    if (min === null || max === null || min === undefined || max === undefined) return false;
-    const v = parseFloat(valor);
-    return !isNaN(v) && (v < min || v > max);
-  };
 
   const handleRegisterPayment = async () => {
     try {
-        // Calculate the amount to send to backend
         const isLocalCurrency = ['Efectivo', 'Transferencia', 'Pago Movil', 'BioPago'].includes(paymentMethod);
         const enteredAmount = parseFloat(paymentAmount) || 0;
         
         let amountInUSD = enteredAmount;
         
         if (isLocalCurrency && exchangeRate > 0) {
-            // Convert Bs to USD
             amountInUSD = enteredAmount / exchangeRate;
         }
         
-        // Cap at pending amount
         const finalAmount = Math.min(amountInUSD, pendiente);
         
         const res = await fetch('/api/payments', {
@@ -173,6 +181,33 @@ export default function OrderDetail({ orderId }) {
      }
   };
 
+  const handleSendEmailRequest = () => {
+      setShowEmailModal(true);
+  };
+
+  const handleConfirmSendEmail = async () => {
+    try {
+        showToast('Enviando correo...', 'info');
+        const res = await fetch(`/api/pdf/email/${orderId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+            showToast(data.error || 'Error enviando correo', 'error');
+            return;
+        }
+        
+        showToast('Correo enviado exitosamente', 'success');
+    } catch(e) {
+        // console.error(e); // Suppressed as requested
+        showToast(e.message, 'error');
+    }
+  };
+
   return (
     <Layout title={`Orden #${order.id.toString().padStart(4, '0')}`}>
       {/* Back button */}
@@ -214,18 +249,36 @@ export default function OrderDetail({ orderId }) {
             <p className={pendiente > 0 ? 'text-sm' : 'text-sm'} style={{ color: pendiente > 0 ? 'var(--danger)' : 'var(--success)' }}>
               {pendiente > 0 ? `Pendiente: $${pendiente.toFixed(2)}` : 'Pagado completamente'}
             </p>
-            {order.estado === 'pagado' && (
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
-                <button className="btn btn-sm btn-success" onClick={handleMarkDelivered}>
-                  <CheckIcon style={{ width: '16px', height: '16px' }} />
-                  Marcar Entregado
-                </button>
-                <button className="btn btn-sm btn-outline">
-                  <PrinterIcon style={{ width: '16px', height: '16px' }} />
-                  Imprimir Reporte
-                </button>
-              </div>
-            )}
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
+                {/* Allow Delivery only if Paid AND Results exist */}
+                {isPaid && hasResults && order.estado !== 'entregado' && (
+                  <button className="btn btn-sm btn-success" onClick={handleMarkDelivered}>
+                    <CheckIcon style={{ width: '16px', height: '16px' }} />
+                    Marcar Entregado
+                  </button>
+                )}
+                
+                {/* Export/Email always available if results exist */}
+                {hasResults && (
+                  <>
+                    <button 
+                      className="btn btn-sm btn-outline"
+                      onClick={() => window.open(`/api/pdf/result/${order.id}`, '_blank')}
+                    >
+                      <PrinterIcon style={{ width: '16px', height: '16px' }} />
+                      Exportar PDF
+                    </button>
+                    <button 
+                      className="btn btn-sm btn-outline"
+                      onClick={handleSendEmailRequest}
+                      title="Enviar resultados al correo del paciente"
+                    >
+                      <EnvelopeIcon style={{ width: '16px', height: '16px' }} />
+                      Enviar Correo
+                    </button>
+                  </>
+                )}
+            </div>
           </div>
         </div>
 
@@ -327,16 +380,12 @@ export default function OrderDetail({ orderId }) {
                         </thead>
                         <tbody>
                         {examen.resultados.map((resultado, idx) => {
-                            // Note: Reference values not returned by backend yet in simple structure, 
-                            // but usually they come with specific exam config. 
-                            // For simplicity, checking if we have them or just showing value.
                             return (
                             <tr key={idx}>
                                 <td style={{ fontWeight: 500 }}>{resultado.nombre}</td>
                                 <td style={{ fontWeight: 600 }}>{resultado.valor}</td>
                                 <td>{resultado.unidad}</td>
                                 <td>
-                                    {/* Simple stub for range check if we had min/max */}
                                     <span className="badge badge-success">Normal</span>
                                 </td>
                             </tr>
@@ -607,6 +656,22 @@ export default function OrderDetail({ orderId }) {
           </div>
         );
       })()}
+
+      {/* Email Confirmation Modal */}
+      {order && (
+        <ConfirmationModal
+            isOpen={showEmailModal}
+            onClose={() => setShowEmailModal(false)}
+            onConfirm={handleConfirmSendEmail}
+            title="Enviar Resultados por Correo"
+            message={!order.paciente.email 
+                ? "⚠️ El paciente no tiene correo registrado. ¿Desea intentar enviarlo de todas formas?" 
+                : `¿Está seguro de enviar los resultados en PDF al correo del paciente (${order.paciente.email})?`
+            }
+            confirmText="Enviar Correo"
+            confirmStyle={!order.paciente.email ? "danger" : "primary"}
+        />
+      )}
     </Layout>
   );
 }

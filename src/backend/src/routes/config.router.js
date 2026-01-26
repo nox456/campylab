@@ -9,4 +9,7 @@ router.use(requireAuth);
 router.get('/rate', configController.getRate);
 router.put('/rate', configController.updateRate);
 
+router.get('/company', configController.getCompanyInfo);
+router.put('/company', configController.updateCompanyInfo);
+
 export default router;

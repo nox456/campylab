@@ -190,6 +190,18 @@ async function initDB() {
       ON CONFLICT (clave) DO NOTHING;
     `);
 
+    // Insertar configuración de empresa por defecto
+    await client.query(`
+      INSERT INTO configuracion (clave, valor) VALUES
+        ('empresa_nombre', 'Laboratorio Clínico'),
+        ('empresa_direccion', ''),
+        ('empresa_telefono', ''),
+        ('empresa_rif', ''),
+        ('empresa_codigo', ''),
+        ('empresa_logo_url', '')
+      ON CONFLICT (clave) DO NOTHING;
+    `);
+
     console.log("✅ Tablas creadas");
   } catch (error) {
     console.error("❌ Error:", error);

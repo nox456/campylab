@@ -5,7 +5,8 @@ export const ordersStorage = {
     let query = `
       SELECT o.*, 
              p.nombre as paciente_nombre, 
-             p.cedula as paciente_cedula
+             p.cedula as paciente_cedula,
+             (SELECT EXISTS(SELECT 1 FROM resultado r WHERE r.id_orden = o.id)) as has_results
       FROM orden o
       JOIN pacientes p ON o.id_paciente = p.id
       WHERE o.activo = TRUE
@@ -71,10 +72,12 @@ export const ordersStorage = {
     
     const rawResultsQuery = `
         SELECT r.id_examen, dr.nombre, dr.unidad, dr.valor, 
-               u.nombre as bioanalista
+               u.nombre as bioanalista,
+               de.valor_min as min, de.valor_max as max
         FROM resultado r
         JOIN detalle_resultado dr ON r.id = dr.id_resultado
         JOIN usuarios u ON r.id_usuario = u.id
+        LEFT JOIN detallado_examen de ON de.id_examen = r.id_examen AND de.nombre = dr.nombre
         WHERE r.id_orden = $1
     `;
     
@@ -88,7 +91,9 @@ export const ordersStorage = {
             resultados: examResults.map(r => ({
                 nombre: r.nombre,
                 unidad: r.unidad,
-                valor: r.valor
+                valor: r.valor,
+                min: r.min,
+                max: r.max
             }))
         };
     });
@@ -184,6 +189,22 @@ export const ordersStorage = {
     }
   },
 
+  async hasAllResults(id) {
+    // Check if all exams in order have results
+    const query = `
+      SELECT 
+        (SELECT COUNT(*) FROM detalle_orden WHERE id_orden = $1) as total_exams,
+        (SELECT COUNT(*) FROM resultado WHERE id_orden = $1) as total_results
+    `;
+    const result = await client.query(query, [id]);
+    const { total_exams, total_results } = result.rows[0];
+    
+    // Careful with 0 exams
+    if (parseInt(total_exams) === 0) return false;
+    
+    return parseInt(total_results) >= parseInt(total_exams);
+  },
+
   async updateStatus(id, status) {
     const result = await client.query(
       `UPDATE orden SET estado = $1 WHERE id = $2 RETURNING *`,
@@ -195,8 +216,8 @@ export const ordersStorage = {
   async delete(id) {
     // Soft delete
     const result = await client.query(
-        `UPDATE orden SET activo = FALSE WHERE id = $1 RETURNING *`,
-        [id]
+      `UPDATE orden SET activo = FALSE WHERE id = $1 RETURNING *`,
+      [id]
     );
     return result.rows[0];
   }

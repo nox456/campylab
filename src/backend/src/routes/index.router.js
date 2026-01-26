@@ -11,6 +11,7 @@ import paymentsRouter from './payments.router.js';
 import dashboardRouter from './dashboard.router.js';
 import usersRouter from './users.router.js';
 import configRouter from './config.router.js';
+import pdfRouter from './pdf.router.js';
 
 const router = express.Router();
 
@@ -24,5 +25,6 @@ router.use('/results', requireAuth, resultsRouter);
 router.use('/payments', requireAuth, paymentsRouter);
 router.use('/users', requireAuth, usersRouter);
 router.use('/config', requireAuth, configRouter);
+router.use('/pdf', requireAuth, pdfRouter);
 
 export default router;

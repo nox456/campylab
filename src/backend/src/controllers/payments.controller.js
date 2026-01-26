@@ -45,8 +45,18 @@ export const paymentsController = {
             const { ordersStorage } = await import('../storage/orders.storage.js');
             const order = await ordersStorage.findById(ordenId);
             
+            // Logic Update: Only set 'pagado' (Ready for Delivery) if fully paid AND results are loaded.
             if (order && order.pagado >= Number(order.total)) {
-                 await ordersStorage.updateStatus(ordenId, 'pagado');
+                 const hasResults = await ordersStorage.hasAllResults(ordenId);
+                 if (hasResults) {
+                     await ordersStorage.updateStatus(ordenId, 'pagado');
+                 } else {
+                     // If paid but results pending, ensure it's not 'creado' if it should be 'procesando'?
+                     // Actually, results logic handles 'procesando'. We just DON'T set 'pagado' here.
+                     // The order stays 'pendiente'/'procesando'/'resultados_cargados'.
+                     // Ideally if it was 'resultados_cargados' but not paid, and now paid -> 'pagado'.
+                     // If 'pendiente', stays 'pendiente'.
+                 }
             }
 
             res.status(201).json(payment);

@@ -151,13 +151,36 @@ export const resultsStorage = {
         const allDone = orderExams.every(id => doneExams.includes(id));
         
         if (allDone) {
-            await client.query(
-                `UPDATE orden SET estado = 'resultados_cargados' WHERE id = $1`,
+            // Check if paid
+            const { ordersStorage } = await import('./orders.storage.js');
+            // We can't reuse transaction client easily unless we pass it, but read is fine.
+            // Actually, best to do a quick check query here within transaction or just assume read committed.
+            
+            // Re-check payment sum
+            const paymentRes = await client.query(
+                `SELECT SUM(monto) as pagado FROM pagos WHERE orden_id = $1`,
                 [ordenId]
+            );
+            const pagado = parseFloat(paymentRes.rows[0].pagado) || 0;
+            
+            const orderTotalRes = await client.query(
+                `SELECT total FROM orden WHERE id = $1`,
+                [ordenId]
+            );
+            const total = parseFloat(orderTotalRes.rows[0].total) || 0;
+            
+            let newStatus = 'resultados_cargados';
+            if (pagado >= total) {
+                newStatus = 'pagado'; // Ready for Delivery
+            }
+            
+            await client.query(
+                `UPDATE orden SET estado = $1 WHERE id = $2`,
+                [newStatus, ordenId]
             );
         } else {
              await client.query(
-                `UPDATE orden SET estado = 'procesando' WHERE id = $1 AND estado = 'pendiente'`,
+                `UPDATE orden SET estado = 'procesando' WHERE id = $1 AND (estado = 'pendiente' OR estado = 'creado')`,
                 [ordenId]
             );
         }

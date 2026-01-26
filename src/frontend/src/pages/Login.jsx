@@ -44,18 +44,16 @@ export default function Login() {
       }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            width: '64px',
-            height: '64px',
-            backgroundColor: 'var(--primary)',
-            borderRadius: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 1rem',
-          }}>
-            <BeakerIcon style={{ width: '36px', height: '36px', color: 'white' }} />
-          </div>
+          <img 
+            src="/icon.png" 
+            alt="CampyLab Logo" 
+            style={{ 
+              width: '80px', 
+              height: '80px', 
+              marginBottom: '1rem', 
+              objectFit: 'contain' 
+            }} 
+          />
           <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--foreground)' }}>
             CampyLab
           </h1>
