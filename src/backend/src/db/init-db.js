@@ -1,14 +1,5 @@
 import 'dotenv/config';
-import pg from 'pg';
-
-// Desempaquetamos el Cliente de la librería pg
-const { Client } = pg;
-
-// 1. Configuración del Cliente
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // Neon requiere conexión encriptada
-});
+import { client } from './client.js';
 
 // 2. La función asíncrona (porque la red tarda)
 async function initDB() {
@@ -23,20 +14,26 @@ async function initDB() {
         cedula VARCHAR(15) UNIQUE NOT NULL,
         email VARCHAR(100) UNIQUE,
         telefono VARCHAR(15) NOT NULL,
-        direccion VARCHAR(255) NOT NULL
+        direccion VARCHAR(255) NOT NULL,
+        sexo VARCHAR(1) NOT NULL,
+        fecha_nacimiento DATE NOT NULL,
+        activo BOOLEAN NOT NULL DEFAULT TRUE
       );
     `);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS usuarios (
         id SERIAL PRIMARY KEY,
-        nombre VARCHAR(100) NOT NULL,
-        cedula VARCHAR(15) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE,
-        telefono VARCHAR(15) NOT NULL,
-        direccion VARCHAR(255) NOT NULL,
-        password VARCHAR(100) NOT NULL,
-        role VARCHAR(50) NOT NULL
+        username VARCHAR(255) UNIQUE NOT NULL,
+        nombre VARCHAR(100),
+        cedula VARCHAR(15) UNIQUE,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        telefono VARCHAR(15),
+        direccion VARCHAR(255),
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'user',
+        activo BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
@@ -69,12 +66,26 @@ async function initDB() {
     `);
 
     await client.query(`
-      CREATE TABLE IF NOT EXISTS consumible (
+      CREATE TABLE IF NOT EXISTS productos (
         id SERIAL PRIMARY KEY,
         nombre VARCHAR(100) NOT NULL,
-        descripcion VARCHAR(255) NOT NULL,
-        unidad VARCHAR(50) NOT NULL,
-        stock INTEGER NOT NULL DEFAULT 0
+        codigo_barras VARCHAR(100) UNIQUE,
+        unidad_medida VARCHAR(50) NOT NULL,
+        descripcion VARCHAR(255),
+        stock_minimo INTEGER DEFAULT 0
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lotes (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        codigo_lote VARCHAR(100),
+        fecha_entrada DATE NOT NULL DEFAULT CURRENT_DATE,
+        fecha_vencimiento DATE,
+        cantidad_inicial INTEGER NOT NULL,
+        cantidad_actual INTEGER NOT NULL,
+        costo_unitario DECIMAL(10, 2)
       );
     `);
 
@@ -86,7 +97,10 @@ async function initDB() {
         id_paciente INTEGER NOT NULL REFERENCES pacientes(id),
         fecha DATE NOT NULL DEFAULT CURRENT_DATE,
         total DECIMAL(10, 2) NOT NULL,
-        estado VARCHAR(50) NOT NULL DEFAULT 'pendiente'
+        estado VARCHAR(50) NOT NULL DEFAULT 'pendiente',
+        prioridad VARCHAR(50) DEFAULT 'rutina',
+        observaciones TEXT,
+        activo BOOLEAN DEFAULT TRUE
       );
     `);
 
@@ -99,20 +113,17 @@ async function initDB() {
       );
     `);
 
-    // Facturacion
+    // Pagos
 
     await client.query(`
-      CREATE TABLE IF NOT EXISTS factura (
+      CREATE TABLE IF NOT EXISTS pagos (
         id SERIAL PRIMARY KEY,
-        nro_control INTEGER NOT NULL,
-        cedula VARCHAR(15) NOT NULL,
-        nombre VARCHAR(100) NOT NULL,
-        direccion VARCHAR(255) NOT NULL,
-        fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-        id_orden INTEGER UNIQUE NOT NULL REFERENCES orden(id),
-        monto_exento DECIMAL(10, 2) NOT NULL,
-        monto_iva DECIMAL(10, 2) NOT NULL,
-        total DECIMAL(10, 2) NOT NULL
+        orden_id INTEGER REFERENCES orden(id),
+        monto DECIMAL(10, 2) NOT NULL,
+        metodo VARCHAR(50), -- Efectivo, Transferencia, Punto, BioPago, Divisas
+        referencia VARCHAR(100),
+        fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        usuario_id INTEGER REFERENCES usuarios(id)
       );
     `);
 
@@ -121,11 +132,12 @@ async function initDB() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS resultado (
         id SERIAL PRIMARY KEY,
-        id_orden INTEGER UNIQUE NOT NULL REFERENCES orden(id),
+        id_orden INTEGER NOT NULL REFERENCES orden(id),
         id_examen INTEGER NOT NULL REFERENCES examen(id),
         id_paciente INTEGER NOT NULL REFERENCES pacientes(id),
         id_usuario INTEGER NOT NULL REFERENCES usuarios(id),
-        fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(id_orden, id_examen)
       );
     `);
 
@@ -143,9 +155,39 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS consumidos (
         id SERIAL PRIMARY KEY,
         id_resultado INTEGER NOT NULL REFERENCES resultado(id),
-        id_consumible INTEGER NOT NULL REFERENCES consumible(id),
+        id_lote INTEGER NOT NULL REFERENCES lotes(id),
         cantidad INTEGER NOT NULL
       );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS movimientos_inventario (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id),
+        lote_id INTEGER REFERENCES lotes(id),
+        tipo VARCHAR(50) NOT NULL,
+        cantidad INTEGER NOT NULL,
+        fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        referencia VARCHAR(255),
+        usuario_id INTEGER REFERENCES usuarios(id)
+      );
+    `);
+
+    // Configuracion Global
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS configuracion (
+        id SERIAL PRIMARY KEY,
+        clave VARCHAR(50) UNIQUE NOT NULL,
+        valor TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Insertar tasa por defecto si no existe
+    await client.query(`
+      INSERT INTO configuracion (clave, valor)
+      VALUES ('tasa_dolar', '0')
+      ON CONFLICT (clave) DO NOTHING;
     `);
 
     console.log("✅ Tablas creadas");
