@@ -14,6 +14,7 @@ import Payments from '../pages/Payments';
 import Results from '../pages/Results';
 import Inventory from '../pages/Inventory';
 import Exams from '../pages/Exams';
+import Configuration from '../pages/Configuration';
 
 export default function Router() {
   const { user, loading } = useAuth();
@@ -98,6 +99,10 @@ export default function Router() {
   
   if (currentPath === '/examenes') {
     return <Exams />;
+  }
+
+  if (currentPath === '/configuracion') {
+    return <Configuration />;
   }
 
   // 404

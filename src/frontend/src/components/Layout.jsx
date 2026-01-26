@@ -15,16 +15,18 @@ import {
   ArrowRightOnRectangleIcon,
   UserCircleIcon,
   DocumentTextIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 
 const menuItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: HomeIcon, module: null },
+  { path: '/dashboard', label: 'Dashboard', icon: HomeIcon, module: 'dashboard' },
   { path: '/pacientes', label: 'Pacientes', icon: UsersIcon, module: 'patients' },
   { path: '/ordenes', label: 'Ordenes', icon: ClipboardIcon, module: 'orders' },
   { path: '/pagos', label: 'Pagos', icon: CreditCardIcon, module: 'payments' },
   { path: '/resultados', label: 'Resultados', icon: BeakerIcon, module: 'results' },
   { path: '/inventario', label: 'Inventario', icon: ArchiveBoxIcon, module: 'inventory' },
-  { path: '/examenes', label: 'Examenes', icon: DocumentTextIcon, module: 'results' },
+  { path: '/examenes', label: 'Examenes', icon: DocumentTextIcon, module: 'exams' },
+  { path: '/configuracion', label: 'Configuración', icon: Cog6ToothIcon, module: 'users' },
 ];
 
 export default function Layout({ children, title }) {

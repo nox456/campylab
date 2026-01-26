@@ -33,6 +33,7 @@ export default function OrderDetail({ orderId }) {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [loading, setLoading] = useState(true);
+  const [exchangeRate, setExchangeRate] = useState(0);
 
   const fetchOrderData = () => {
     if (orderId) {
@@ -58,6 +59,7 @@ export default function OrderDetail({ orderId }) {
 
   useEffect(() => {
       fetchOrderData();
+      fetchExchangeRate();
   }, [orderId]);
 
   useEffect(() => {
@@ -65,6 +67,18 @@ export default function OrderDetail({ orderId }) {
           fetchPayments();
       }
   }, [activeTab, orderId]);
+
+  const fetchExchangeRate = async () => {
+    try {
+      const res = await fetch('/api/config/rate');
+      if (res.ok) {
+        const data = await res.json();
+        setExchangeRate(parseFloat(data.tasa) || 0);
+      }
+    } catch (e) {
+      console.error('Error fetching exchange rate:', e);
+    }
+  };
 
   if (loading || !order) {
       return (
@@ -104,12 +118,26 @@ export default function OrderDetail({ orderId }) {
 
   const handleRegisterPayment = async () => {
     try {
+        // Calculate the amount to send to backend
+        const isLocalCurrency = ['Efectivo', 'Transferencia', 'Pago Movil', 'BioPago'].includes(paymentMethod);
+        const enteredAmount = parseFloat(paymentAmount) || 0;
+        
+        let amountInUSD = enteredAmount;
+        
+        if (isLocalCurrency && exchangeRate > 0) {
+            // Convert Bs to USD
+            amountInUSD = enteredAmount / exchangeRate;
+        }
+        
+        // Cap at pending amount
+        const finalAmount = Math.min(amountInUSD, pendiente);
+        
         const res = await fetch('/api/payments', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 ordenId: order.id,
-                monto: parseFloat(paymentAmount),
+                monto: finalAmount,
                 metodo: paymentMethod,
                 nota: 'Pago registrado desde detalle de orden'
             })
@@ -120,7 +148,7 @@ export default function OrderDetail({ orderId }) {
         setShowPaymentModal(false);
         setPaymentAmount('');
         fetchPayments();
-        fetchOrderData(); // To update 'pagado' amount if backend updates it, or we rely on payments sum
+        fetchOrderData();
         showToast('Pago registrado con exito', 'success');
     } catch (e) {
         console.error(e);
@@ -450,61 +478,135 @@ export default function OrderDetail({ orderId }) {
       </div>
 
       {/* Payment Modal */}
-      {showPaymentModal && (
-        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h3 className="modal-title">Registrar Pago</h3>
-              <button className="btn btn-sm btn-outline" onClick={() => setShowPaymentModal(false)}>
-                <XMarkIcon style={{ width: '18px', height: '18px' }} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
-                Monto pendiente: <strong>${pendiente.toFixed(2)}</strong>
-              </div>
+      {showPaymentModal && (() => {
+        const isLocalCurrency = ['Efectivo', 'Transferencia', 'Pago Movil', 'BioPago'].includes(paymentMethod);
+        const expectedBsAmount = isLocalCurrency && exchangeRate > 0 ? (pendiente * exchangeRate) : null;
+        const enteredAmount = parseFloat(paymentAmount) || 0;
+        
+        // Calculate USD equivalent
+        const amountInUSD = isLocalCurrency && exchangeRate > 0 ? enteredAmount / exchangeRate : enteredAmount;
+        
+        // Calculate change if overpayment
+        const hasChange = amountInUSD > pendiente;
+        const changeInUSD = hasChange ? amountInUSD - pendiente : 0;
+        const changeInBs = isLocalCurrency && exchangeRate > 0 ? changeInUSD * exchangeRate : 0;
+        
+        const isValidAmount = enteredAmount > 0;
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Monto a Pagar *</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="0.00"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  max={pendiente}
-                  step="0.01"
-                />
+        return (
+          <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+              <div className="modal-header">
+                <h3 className="modal-title">Registrar Pago</h3>
+                <button className="btn btn-sm btn-outline" onClick={() => setShowPaymentModal(false)}>
+                  <XMarkIcon style={{ width: '18px', height: '18px' }} />
+                </button>
               </div>
+              <div className="modal-body">
+                <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span>Monto pendiente:</span>
+                    <strong>${pendiente.toFixed(2)}</strong>
+                  </div>
+                  {exchangeRate > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>
+                      <span>Tasa BCV:</span>
+                      <span>Bs. {exchangeRate.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
 
-              <div className="form-group">
-                <label className="form-label">Metodo de Pago</label>
-                <select
-                  className="form-select"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Metodo de Pago</label>
+                  <select
+                    className="form-select"
+                    value={paymentMethod}
+                    onChange={(e) => {
+                      setPaymentMethod(e.target.value);
+                      setPaymentAmount('');
+                    }}
+                  >
+                    <option value="Efectivo">Efectivo (Bs)</option>
+                    <option value="Transferencia">Transferencia (Bs)</option>
+                    <option value="Pago Movil">Pago Movil (Bs)</option>
+                    <option value="BioPago">BioPago (Bs)</option>
+                    <option value="Divisa">Divisa (USD)</option>
+                    <option value="Transferencia (USD)">Transferencia (USD)</option>
+                  </select>
+                </div>
+
+                {isLocalCurrency && expectedBsAmount && (
+                  <div className="alert alert-warning" style={{ marginBottom: '1rem', fontSize: '0.875rem' }}>
+                    <strong>Monto a cobrar en Bs:</strong> Bs. {expectedBsAmount.toFixed(2)}
+                  </div>
+                )}
+
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">
+                    Monto Recibido {isLocalCurrency ? '(Bs)' : '(USD)'} *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ 
+                      position: 'absolute', 
+                      left: '12px', 
+                      top: '50%', 
+                      transform: 'translateY(-50%)',
+                      color: 'var(--muted-foreground)',
+                      fontWeight: 500
+                    }}>
+                      {isLocalCurrency ? 'Bs.' : '$'}
+                    </span>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="0.00"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      step="0.01"
+                      style={{ paddingLeft: '2.5rem' }}
+                    />
+                  </div>
+                  {isLocalCurrency && enteredAmount > 0 && exchangeRate > 0 && (
+                    <p className="text-xs text-muted" style={{ marginTop: '0.5rem' }}>
+                      Equivalente: ${amountInUSD.toFixed(2)} USD
+                    </p>
+                  )}
+                </div>
+
+                {hasChange && (
+                  <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+                    <strong>💵 Vuelto al cliente:</strong>
+                    <div style={{ marginTop: '0.5rem', fontSize: '1.1rem' }}>
+                      {isLocalCurrency ? (
+                        <>
+                          <strong>Bs. {changeInBs.toFixed(2)}</strong>
+                          <span style={{ fontSize: '0.875rem', marginLeft: '0.5rem', color: 'var(--muted-foreground)' }}>
+                            (${changeInUSD.toFixed(2)})
+                          </span>
+                        </>
+                      ) : (
+                        <strong>${changeInUSD.toFixed(2)}</strong>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>
+                  Cancelar
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleRegisterPayment}
+                  disabled={!isValidAmount}
                 >
-                  <option value="Efectivo">Efectivo</option>
-                  <option value="Transferencia">Transferencia</option>
-                  <option value="Divisa">Divisa (USD)</option>
-                </select>
+                  Registrar Pago
+                </button>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>
-                Cancelar
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleRegisterPayment}
-                disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || parseFloat(paymentAmount) > pendiente}
-              >
-                Registrar Pago
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </Layout>
   );
 }

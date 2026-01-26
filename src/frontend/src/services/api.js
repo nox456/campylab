@@ -21,16 +21,10 @@ async function request(endpoint, options = {}) {
 }
 
 export const authApi = {
-  login: (email, password) =>
+  login: (username, password) =>
     request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
-
-  register: (email, password) =>
-    request('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     }),
 
   logout: () =>

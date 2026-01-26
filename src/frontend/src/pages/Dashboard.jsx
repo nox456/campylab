@@ -17,7 +17,7 @@ import {
 
 
 export default function Dashboard() {
-  const { user, canAccessModule } = useAuth();
+  const { user, canAccessModule, hasPermission } = useAuth();
   const [stats, setStats] = useState({
     totalPatients: 0,
     ordersToday: 0,
@@ -131,7 +131,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {canAccessModule('payments') && (
+        {hasPermission('dashboard', 'view_income') && (
           <div className="stat-card">
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>

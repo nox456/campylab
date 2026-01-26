@@ -20,9 +20,9 @@ export default function Orders() {
   const { showToast } = useToast();
   const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pendiente');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  /* const [showFilters, setShowFilters] = useState(false); */
   const [loading, setLoading] = useState(false);
 
   // Form Resources
@@ -69,7 +69,15 @@ export default function Orders() {
       o.id.toString().includes(searchTerm) ||
       o.paciente_nombre.toLowerCase().includes(searchLow) ||
       o.paciente_cedula.toString().includes(searchTerm);
-    const matchesStatus = !statusFilter || o.estado === statusFilter;
+    let matchesStatus = true;
+    if (statusFilter === 'pendiente') {
+        matchesStatus = o.estado !== 'entregado' && o.estado !== 'cancelado';
+    } else if (statusFilter === 'todos') {
+        matchesStatus = true;
+    } else {
+        matchesStatus = o.estado === statusFilter;
+    }
+
     return matchesSearch && matchesStatus;
   });
 
@@ -165,13 +173,19 @@ export default function Orders() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button 
-            className={`btn btn-outline ${showFilters ? 'btn-primary' : ''}`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <FunnelIcon style={{ width: '18px', height: '18px' }} />
-            Filtros
-          </button>
+            <select
+              className="form-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{ width: '200px' }}
+            >
+                <option value="pendiente">Pendiente (Activas)</option>
+                <option value="creado">En espera de Resultados</option>
+                <option value="resultados_cargados">En Espera de Pago</option>
+                <option value="pagado">Pendiente por entregar</option>
+                <option value="entregado">Entregado</option>
+                <option value="todos">Todas</option>
+            </select>
         </div>
         {canCreate && (
           <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
@@ -182,27 +196,7 @@ export default function Orders() {
       </div>
 
       {/* Filters */}
-      {showFilters && (
-        <div className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <div className="form-group" style={{ minWidth: '200px' }}>
-              <label className="form-label">Estado</label>
-              <select
-                className="form-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="">Todos</option>
-                <option value="pendiente">Pendiente</option>
-                <option value="procesando">Procesando</option>
-                <option value="resultados_cargados">Resultados Cargados</option>
-                <option value="pagado">Pagado</option>
-                <option value="entregado">Entregado</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Orders Table */}
       <div className="card">

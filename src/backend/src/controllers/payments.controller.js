@@ -34,7 +34,7 @@ export const paymentsController = {
 
             const payment = await paymentsStorage.create({
                 ordenId,
-                monto,
+                monto: parseFloat(monto),
                 metodo,
                 referencia,
                 nota,
@@ -42,11 +42,6 @@ export const paymentsController = {
             });
 
             // Check if order is fully paid
-            // We need to fetch the order and its payments to verify
-            // Or just check sum(payments) >= order.total
-            // For now, let's use a quick check via existing storage methods or new logic
-            // Since we are in controller, we can import ordersStorage
-            // Dynamic import to avoid circular dependency if any, or standard import
             const { ordersStorage } = await import('../storage/orders.storage.js');
             const order = await ordersStorage.findById(ordenId);
             

@@ -6,29 +6,35 @@ import { authApi } from '../services/api';
 const AuthContext = createContext(null);
 
 const PERMISSIONS = {
-  super_admin: {
+  Admin: {
     patients: ['create', 'read', 'update', 'delete'],
     orders: ['create', 'read', 'update', 'delete'],
     payments: ['create', 'read', 'update', 'delete'],
     results: ['create', 'read', 'update', 'delete'],
     inventory: ['create', 'read', 'update', 'delete'],
     users: ['create', 'read', 'update', 'delete'],
+    exams: ['create', 'read', 'update', 'delete'],
+    dashboard: ['view_income'], // Can see income stats
   },
-  bioanalista: {
-    patients: ['read'],
-    orders: ['read'],
-    payments: [],
-    results: ['create', 'read', 'update'],
-    inventory: ['read'],
-    users: [],
-  },
-  recepcionista: {
+  Bioanalista: {
     patients: ['create', 'read', 'update'],
-    orders: ['create', 'read'],
-    payments: ['create', 'read'],
-    results: [],
-    inventory: [],
-    users: [],
+    orders: ['create', 'read', 'update'],
+    payments: [], // No access to payments
+    results: ['create', 'read', 'update', 'delete'],
+    inventory: ['create', 'read', 'update', 'delete'],
+    users: [], // No access to users/config
+    exams: ['read'],
+    dashboard: ['view'], // Can see dashboard but not income
+  },
+  Asistente: {
+    patients: ['create', 'read', 'update'],
+    orders: ['create', 'read', 'update'],
+    payments: [], // No access to payments
+    results: [], // No access to results
+    inventory: ['create', 'read', 'update', 'delete'],
+    users: [], // No access to users/config
+    exams: [], // No access to exams
+    dashboard: ['view'], // Can see dashboard but not income
   },
   user: {
     patients: ['read'],
@@ -37,6 +43,8 @@ const PERMISSIONS = {
     results: ['read'],
     inventory: ['read'],
     users: [],
+    exams: ['read'],
+    dashboard: ['view'],
   },
 };
 
@@ -63,9 +71,9 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const login = async (email, password) => {
+  const login = async (username, password) => {
     try {
-      const { user: userData } = await authApi.login(email, password);
+      const { user: userData } = await authApi.login(username, password);
       const role = userData.role || 'user';
       setUser({
         ...userData,
@@ -74,20 +82,6 @@ export function AuthProvider({ children }) {
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message || 'Credenciales incorrectas' };
-    }
-  };
-
-  const register = async (email, password) => {
-    try {
-      const { user: userData } = await authApi.register(email, password);
-      const role = userData.role || 'user';
-      setUser({
-        ...userData,
-        permissions: PERMISSIONS[role] || PERMISSIONS.user,
-      });
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message || 'Error al registrar' };
     }
   };
 
@@ -101,11 +95,8 @@ export function AuthProvider({ children }) {
   };
 
   const hasPermission = (module, action) => {
-    // Temporary override: Allow all actions for dev
-    return true;
-    
-    // if (!user || !user.permissions) return false;
-    // return user.permissions[module]?.includes(action) || false;
+    if (!user || !user.permissions) return false;
+    return user.permissions[module]?.includes(action) || false;
   };
 
   const canAccessModule = (module) => {
@@ -114,7 +105,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, hasPermission, canAccessModule }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, hasPermission, canAccessModule }}>
       {children}
     </AuthContext.Provider>
   );

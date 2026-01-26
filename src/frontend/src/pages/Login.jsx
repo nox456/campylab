@@ -5,13 +5,12 @@ import { useAuth } from '../context/AuthContext';
 import { BeakerIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 export default function Login() {
-  const { login, register } = useAuth();
-  const [email, setEmail] = useState('');
+  const { login } = useAuth();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isRegister, setIsRegister] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,9 +18,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const result = isRegister
-        ? await register(email, password)
-        : await login(email, password);
+      const result = await login(username, password);
       if (!result.success) {
         setError(result.error);
       }
@@ -70,7 +67,7 @@ export default function Login() {
         {/* Login Card */}
         <div className="card" style={{ padding: '2rem' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1.5rem', textAlign: 'center' }}>
-            {isRegister ? 'Crear Cuenta' : 'Iniciar Sesion'}
+            Iniciar Sesion
           </h2>
 
           {error && (
@@ -81,23 +78,23 @@ export default function Login() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label className="form-label" htmlFor="email">
-                Correo Electronico
+              <label className="form-label" htmlFor="username">
+                Usuario
               </label>
               <input
-                type="email"
-                id="email"
+                type="text"
+                id="username"
                 className="form-input"
-                placeholder="Ingrese su correo"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Ingrese su usuario"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
               />
             </div>
 
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
               <label className="form-label" htmlFor="password">
-                Contrasena
+                Contraseña
               </label>
               <div style={{ position: 'relative' }}>
                 <input
@@ -105,11 +102,10 @@ export default function Login() {
                   id="password"
                   className="form-input"
                   style={{ paddingRight: '2.5rem' }}
-                  placeholder="Ingrese su contrasena"
+                  placeholder="Ingrese su contraseña"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={8}
                 />
                 <button
                   type="button"
@@ -133,11 +129,6 @@ export default function Login() {
                   )}
                 </button>
               </div>
-              {isRegister && (
-                <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.25rem' }}>
-                  Minimo 8 caracteres
-                </p>
-              )}
             </div>
 
             <button
@@ -146,28 +137,9 @@ export default function Login() {
               disabled={loading}
               style={{ padding: '0.75rem' }}
             >
-              {loading ? (isRegister ? 'Registrando...' : 'Ingresando...') : (isRegister ? 'Registrarse' : 'Ingresar')}
+              {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
           </form>
-
-          <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegister(!isRegister);
-                setError('');
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--primary)',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-              }}
-            >
-              {isRegister ? 'Ya tengo cuenta' : 'Crear cuenta nueva'}
-            </button>
-          </div>
         </div>
 
         <p style={{

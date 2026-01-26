@@ -24,7 +24,7 @@ export default function Results() {
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('pendiente'); // Default to pending
-  const [showFilters, setShowFilters] = useState(false);
+  /* const [showFilters, setShowFilters] = useState(false); */
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedExam, setSelectedExam] = useState(null);
   const [resultValues, setResultValues] = useState({});
@@ -277,47 +277,31 @@ export default function Results() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button 
-            className={`btn btn-outline ${showFilters ? 'btn-primary' : ''}`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <FunnelIcon style={{ width: '18px', height: '18px' }} />
-            Filtros
-          </button>
+            <select
+                className="form-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{ width: '180px' }}
+            >
+                <option value="">Estado: Todos</option>
+                <option value="pendiente">Pendientes / En Proceso</option>
+                <option value="completado">Completadas / Entregadas</option>
+            </select>
+            <select
+                className="form-select"
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                style={{ width: '150px' }}
+            >
+                <option value="">Prioridad: Todas</option>
+                <option value="urgente">Urgente</option>
+                <option value="rutina">Rutina</option>
+            </select>
         </div>
       </div>
 
       {/* Filters */}
-      {showFilters && (
-        <div className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-             <div className="form-group" style={{ minWidth: '200px' }}>
-              <label className="form-label">Estado Orden</label>
-              <select
-                className="form-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="">Todas</option>
-                <option value="pendiente">Pendientes / En Proceso</option>
-                <option value="completado">Completadas / Entregadas</option>
-              </select>
-            </div>
-            <div className="form-group" style={{ minWidth: '200px' }}>
-              <label className="form-label">Prioridad</label>
-              <select
-                className="form-select"
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-              >
-                <option value="">Todas</option>
-                <option value="urgente">Urgente</option>
-                <option value="rutina">Rutina</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Orders List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

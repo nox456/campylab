@@ -22,7 +22,7 @@ export default function Payments() {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+  /* const [showFilters, setShowFilters] = useState(false); */
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -55,15 +55,32 @@ export default function Payments() {
   });
 
   // Calculate totals
-  const totals = filteredPayments.reduce((acc, p) => {
-      // p.monto comes as string from DB (decimal), parse it
+  // Calculate totals (Global, ignoring filters)
+  const totals = payments.reduce((acc, p) => {
     const amount = parseFloat(p.monto) || 0;
+    
+    // Total Global Amount
     acc.total += amount;
-    if (p.metodo === 'Efectivo') acc.efectivo += amount;
-    else if (p.metodo === 'Transferencia') acc.transferencia += amount;
-    else if (p.metodo === 'Divisa') acc.divisa += amount;
+
+    // Categorize by Currency
+    // Bs: Efectivo, Transferencia, Pago Movil, BioPago
+    // USD: Divisa, Transferencia (USD)
+    
+    const isUSD = p.metodo === 'Divisa' || p.metodo === 'Transferencia (USD)';
+    const isBs = ['Efectivo', 'Transferencia', 'Pago Movil', 'BioPago'].includes(p.metodo);
+
+    if (isUSD) {
+        acc.usd += amount;
+    } else if (isBs) {
+        acc.bs += amount;
+    } else {
+        // Fallback for unknown methods, treat as Bs or keep separate? 
+        // Assuming default is Bs if not specified as USD
+        acc.bs += amount;
+    }
+
     return acc;
-  }, { total: 0, efectivo: 0, transferencia: 0, divisa: 0 });
+  }, { total: 0, bs: 0, usd: 0 });
 
   const getMethodIcon = (metodo) => {
     switch (metodo) {
@@ -100,50 +117,41 @@ export default function Payments() {
         gap: '1rem',
         marginBottom: '1.5rem',
       }}>
+        {/* Total Recaudado (Mixed Check) */}
         <div className="stat-card">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <p className="stat-card-value">${totals.total.toFixed(2)}</p>
-              <p className="stat-card-label">Total Recaudado</p>
+              <p className="stat-card-label">Total Recaudado (Global)</p>
+            </div>
+            <div className="stat-card-icon" style={{ backgroundColor: 'rgba(75, 85, 99, 0.1)' }}>
+              <BanknotesIcon style={{ width: '24px', height: '24px', color: 'var(--foreground)' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Total Bs */}
+        <div className="stat-card">
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div>
+              <p className="stat-card-value">Bs. {totals.bs.toFixed(2)}</p>
+              <p className="stat-card-label">Total Bolívares</p>
             </div>
             <div className="stat-card-icon" style={{ backgroundColor: 'rgba(8, 145, 178, 0.1)' }}>
-              <CurrencyDollarIcon style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
+              <CreditCardIcon style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
             </div>
           </div>
         </div>
 
+        {/* Total USD */}
         <div className="stat-card">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
-              <p className="stat-card-value">${totals.efectivo.toFixed(2)}</p>
-              <p className="stat-card-label">Efectivo</p>
+              <p className="stat-card-value">${totals.usd.toFixed(2)}</p>
+              <p className="stat-card-label">Total Divisas (USD)</p>
             </div>
             <div className="stat-card-icon" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
-              <BanknotesIcon style={{ width: '24px', height: '24px', color: 'var(--success)' }} />
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <div>
-              <p className="stat-card-value">${totals.transferencia.toFixed(2)}</p>
-              <p className="stat-card-label">Transferencias</p>
-            </div>
-            <div className="stat-card-icon" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
-              <CreditCardIcon style={{ width: '24px', height: '24px', color: 'var(--info)' }} />
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <div>
-              <p className="stat-card-value">${totals.divisa.toFixed(2)}</p>
-              <p className="stat-card-label">Divisas (USD)</p>
-            </div>
-            <div className="stat-card-icon" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
-              <CurrencyDollarIcon style={{ width: '24px', height: '24px', color: 'var(--warning)' }} />
+              <CurrencyDollarIcon style={{ width: '24px', height: '24px', color: 'var(--success)' }} />
             </div>
           </div>
         </div>
@@ -162,60 +170,34 @@ export default function Payments() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button 
-            className={`btn btn-outline ${showFilters ? 'btn-primary' : ''}`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <FunnelIcon style={{ width: '18px', height: '18px' }} />
-            Filtros
+            <input
+              type="date"
+              className="form-input"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              style={{ width: '160px' }}
+            />
+            <select
+              className="form-select"
+              value={methodFilter}
+              onChange={(e) => setMethodFilter(e.target.value)}
+              style={{ width: '150px' }}
+            >
+              <option value="">Metodo: Todos</option>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Transferencia">Transferencia</option>
+              <option value="Divisa">Divisa (USD)</option>
+              <option value="Pago Movil">Pago Movil</option>
+              <option value="BioPago">BioPago</option>
+            </select>
+        </div>
+          <button className="btn btn-outline">
+            <DocumentTextIcon style={{ width: '18px', height: '18px' }} />
+            Exportar Reporte
           </button>
         </div>
-        <button className="btn btn-outline">
-          <DocumentTextIcon style={{ width: '18px', height: '18px' }} />
-          Exportar Reporte
-        </button>
-      </div>
 
-      {/* Filters */}
-      {showFilters && (
-        <div className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <div className="form-group" style={{ minWidth: '200px' }}>
-              <label className="form-label">Fecha</label>
-              <input
-                type="date"
-                className="form-input"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-              />
-            </div>
-            <div className="form-group" style={{ minWidth: '200px' }}>
-              <label className="form-label">Metodo de Pago</label>
-              <select
-                className="form-select"
-                value={methodFilter}
-                onChange={(e) => setMethodFilter(e.target.value)}
-              >
-                <option value="">Todos</option>
-                <option value="Efectivo">Efectivo</option>
-                <option value="Transferencia">Transferencia</option>
-                <option value="Divisa">Divisa (USD)</option>
-              </select>
-            </div>
-            <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button 
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  setDateFilter('');
-                  setMethodFilter('');
-                }}
-              >
-                Limpiar filtros
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Payments Table */}
       <div className="card">
