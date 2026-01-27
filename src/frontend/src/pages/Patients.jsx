@@ -1,5 +1,6 @@
 'use client';
 
+import Pagination from '../components/Pagination';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +22,11 @@ export default function Patients() {
   const { showToast } = useToast();
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
   const [showModal, setShowModal] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
@@ -64,6 +70,17 @@ export default function Patients() {
     p.cedula.toString().includes(searchTerm) ||
     p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Pagination Logic
+  const totalItems = filteredPatients.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentPatients = filteredPatients.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const handleOpenModal = (patient = null) => {
     if (patient) {
@@ -190,7 +207,7 @@ export default function Patients() {
 
       {/* Patients Table */}
       <div className="card">
-        <div className="table-container">
+        <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
           {loading ? (
              <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando pacientes...</div>
           ) : (
@@ -208,7 +225,7 @@ export default function Patients() {
               </tr>
             </thead>
             <tbody>
-              {filteredPatients.length === 0 ? (
+              {currentPatients.length === 0 ? (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
                     <UserIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
@@ -216,7 +233,7 @@ export default function Patients() {
                   </td>
                 </tr>
               ) : (
-                filteredPatients.map(patient => (
+                currentPatients.map(patient => (
                   <tr key={patient.id} style={{ opacity: patient.activo ? 1 : 0.6 }}>
                     <td style={{ fontWeight: 500 }}>{patient.cedula}</td>
                     <td>{patient.nombre}</td>
@@ -278,6 +295,18 @@ export default function Patients() {
           </table>
           )}
         </div>
+        
+        {/* Pagination Control */}
+        <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+            totalItems={totalItems}
+            startIndex={startIndex}
+            endIndex={endIndex}
+        />
       </div>
 
       {/* Add/Edit Modal */}

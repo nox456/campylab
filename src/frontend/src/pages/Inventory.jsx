@@ -1,5 +1,6 @@
 'use client';
 
+import Pagination from '../components/Pagination';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +27,10 @@ export default function Inventory() {
   const [movements, setMovements] = useState([]); 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -106,6 +111,11 @@ export default function Inventory() {
     fetchInventory();
   }, []);
 
+  // Pagination Reset
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterLowStock, activeTab]);
+
   const canCreate = hasPermission('inventory', 'create');
   const canUpdate = hasPermission('inventory', 'update');
 
@@ -118,7 +128,14 @@ export default function Inventory() {
   });
 
   const lowStockCount = inventory.filter(i => i.cantidad < i.minimo).length;
-  const totalItems = inventory.length;
+  
+  // Unified Pagination Calculation
+  const currentList = activeTab === 'catalogo' ? filteredInventory : movements;
+  const totalItems = currentList.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = currentList.slice(startIndex, endIndex);
 
   const handleOpenModal = (mode, item = null) => {
     setModalMode(mode);
@@ -331,7 +348,7 @@ export default function Inventory() {
       {/* Movements Tab */}
       {activeTab === 'movimientos' && (
           <div className="card">
-              <div className="table-container">
+              <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
                   <table>
                       <thead>
                           <tr>
@@ -345,14 +362,14 @@ export default function Inventory() {
                           </tr>
                       </thead>
                       <tbody>
-                          {movements.length === 0 ? (
+                          {paginatedItems.length === 0 ? (
                               <tr>
                                   <td colSpan="7" className="text-center p-4">
                                       <p className="text-muted">No hay movimientos registrados.</p>
                                   </td>
                               </tr>
                           ) : (
-                              movements.map(m => (
+                              paginatedItems.map(m => (
                                   <tr key={m.id}>
                                       <td className="text-sm">{new Date(m.fecha).toLocaleString()}</td>
                                       <td style={{ fontWeight: 500 }}>{m.producto}</td>
@@ -376,6 +393,18 @@ export default function Inventory() {
                       </tbody>
                   </table>
               </div>
+              
+              {/* Pagination Control */}
+              <Pagination 
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  itemsPerPage={itemsPerPage}
+                  onItemsPerPageChange={setItemsPerPage}
+                  totalItems={totalItems}
+                  startIndex={startIndex}
+                  endIndex={endIndex}
+              />
           </div>
       )}
 
@@ -407,7 +436,7 @@ export default function Inventory() {
 
           {/* Inventory Table */}
           <div className="card">
-            <div className="table-container">
+            <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
               <table>
                 <thead>
                   <tr>
@@ -422,7 +451,7 @@ export default function Inventory() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredInventory.length === 0 ? (
+                  {paginatedItems.length === 0 ? (
                     <tr>
                       <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
                         <ArchiveBoxIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
@@ -430,7 +459,7 @@ export default function Inventory() {
                       </td>
                     </tr>
                   ) : (
-                    filteredInventory.map(item => {
+                    paginatedItems.map(item => {
                       const isLowStock = item.cantidad < item.minimo;
                       const hasLots = item.lotes && item.lotes.length > 0;
                       const expiredWarning = hasExpiredLots(item.lotes);
@@ -547,6 +576,18 @@ export default function Inventory() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Control */}
+            <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
+                totalItems={totalItems}
+                startIndex={startIndex}
+                endIndex={endIndex}
+            />
           </div>
         </>
       )}

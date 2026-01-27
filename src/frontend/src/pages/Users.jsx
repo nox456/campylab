@@ -1,5 +1,6 @@
 'use client';
 
+import Pagination from '../components/Pagination';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +23,10 @@ export default function Users({ isEmbed = false }) {
   const [editingUser, setEditingUser] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Form State
   const [formData, setFormData] = useState({
     username: '',
@@ -37,6 +42,11 @@ export default function Users({ isEmbed = false }) {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Reset pagination when users list changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [users.length]);
 
   const fetchUsers = async () => {
     try {
@@ -124,6 +134,13 @@ export default function Users({ isEmbed = false }) {
     });
   };
 
+  // Pagination Logic
+  const totalItems = users.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentUsers = users.slice(startIndex, endIndex);
+
   const content = (
     <>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
@@ -134,7 +151,7 @@ export default function Users({ isEmbed = false }) {
       </div>
 
       <div className="card">
-        <div className="table-container">
+        <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
           <table>
             <thead>
               <tr>
@@ -147,7 +164,7 @@ export default function Users({ isEmbed = false }) {
               </tr>
             </thead>
             <tbody>
-              {users.map(user => (
+              {currentUsers.map(user => (
                 <tr key={user.id} style={{ opacity: user.activo ? 1 : 0.6 }}>
                   <td>
                     <span className="font-medium">{user.username}</span>
@@ -192,7 +209,7 @@ export default function Users({ isEmbed = false }) {
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && !loading && (
+              {currentUsers.length === 0 && !loading && (
                 <tr>
                   <td colSpan="6" className="text-center text-muted" style={{ padding: '2rem' }}>
                     No hay usuarios registrados.
@@ -202,6 +219,18 @@ export default function Users({ isEmbed = false }) {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Control */}
+        <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+            totalItems={totalItems}
+            startIndex={startIndex}
+            endIndex={endIndex}
+        />
       </div>
 
       {/* Modal */}

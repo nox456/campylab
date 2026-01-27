@@ -1,3 +1,4 @@
+import Pagination from '../components/Pagination';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +18,10 @@ export default function Exams() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('examenes'); // 'examenes' or 'categorias'
   
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Data States
   const [exams, setExams] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -45,6 +50,11 @@ export default function Exams() {
     fetchExams();
     fetchCategories();
   }, []);
+
+  // Pagination Reset
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   const fetchExams = async () => {
     try {
@@ -164,6 +174,14 @@ export default function Exams() {
     setExamForm({ ...examForm, detalles: newDetails });
   };
 
+  // Pagination Logic
+  const currentList = activeTab === 'categorias' ? categories : exams;
+  const totalItems = currentList.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = currentList.slice(startIndex, endIndex);
+
   return (
     <Layout title="Gestion de Examenes">
        <div className="tabs" style={{ marginBottom: '1rem' }}>
@@ -196,7 +214,7 @@ export default function Exams() {
       </div>
 
       <div className="card">
-        <div className="table-container">
+        <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
           {activeTab === 'categorias' ? (
             <table>
               <thead>
@@ -207,7 +225,7 @@ export default function Exams() {
                 </tr>
               </thead>
               <tbody>
-                {categories.map(cat => (
+                {paginatedItems.map(cat => (
                   <tr key={cat.id}>
                     <td>{cat.nombre}</td>
                     <td>{cat.muestra}</td>
@@ -238,7 +256,7 @@ export default function Exams() {
                 </tr>
               </thead>
               <tbody>
-                {exams.map(exam => (
+                {paginatedItems.map(exam => (
                   <tr key={exam.id}>
                     <td style={{ fontWeight: 500 }}>{exam.nombre}</td>
                     <td>
@@ -263,6 +281,18 @@ export default function Exams() {
             </table>
           )}
         </div>
+        
+        {/* Pagination Control */}
+        <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+            totalItems={totalItems}
+            startIndex={startIndex}
+            endIndex={endIndex}
+        />
       </div>
 
       {showModal && (

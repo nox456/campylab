@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
+import Pagination from '../components/Pagination';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
 import { Link, navigate } from '../router/Router';
@@ -27,6 +28,10 @@ export default function Orders() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   /* const [showFilters, setShowFilters] = useState(false); */
   const [loading, setLoading] = useState(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Form Resources
   const [patients, setPatients] = useState([]);
@@ -87,6 +92,18 @@ export default function Orders() {
 
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination Logic
+  const totalItems = filteredOrders.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentOrders = filteredOrders.slice(startIndex, endIndex);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   const filteredPatients = patients.filter(p =>
     (p.activo !== false) && // Only active patients
@@ -235,7 +252,7 @@ export default function Orders() {
 
       {/* Orders Table */}
       <div className="card">
-        <div className="table-container">
+        <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
           <table>
             <thead>
               <tr>
@@ -249,7 +266,7 @@ export default function Orders() {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.length === 0 ? (
+              {currentOrders.length === 0 ? (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
                     <ClipboardDocumentListIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
@@ -257,7 +274,7 @@ export default function Orders() {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map(order => {
+                currentOrders.map(order => {
                   const statusBadge = getStatusBadge(order.estado);
                   // Ensure numeric values
                   const total = Number(order.total) || 0;
@@ -314,6 +331,18 @@ export default function Orders() {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Control */}
+        <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+            totalItems={totalItems}
+            startIndex={startIndex}
+            endIndex={endIndex}
+        />
       </div>
 
       {/* Confirmation Modal */}

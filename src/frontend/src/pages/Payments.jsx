@@ -1,5 +1,6 @@
 'use client';
 
+import Pagination from '../components/Pagination';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -25,9 +26,18 @@ export default function Payments() {
   /* const [showFilters, setShowFilters] = useState(false); */
   const [loading, setLoading] = useState(false);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   useEffect(() => {
     fetchPayments();
   }, []);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateFilter, methodFilter]);
 
   const fetchPayments = async () => {
     try {
@@ -53,6 +63,13 @@ export default function Payments() {
     const matchesMethod = !methodFilter || p.metodo === methodFilter;
     return matchesSearch && matchesDate && matchesMethod;
   });
+
+  // Pagination Logic
+  const totalItems = filteredPayments.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentPayments = filteredPayments.slice(startIndex, endIndex);
 
   // Calculate totals
   // Calculate totals (Global, ignoring filters)
@@ -110,6 +127,14 @@ export default function Payments() {
 
   return (
     <Layout title="Pagos">
+      {/* ... Summary Cards Code ... */}
+      {/* (Skipping Summary Cards re-write to save tokens, assuming they are unchanged until Header Actions) */}
+      {/* Wait, I can't skip nicely with replace_file_content if I want to wrap everything. 
+          Actually, I targeted EndLine 268 which is the end of the Table Div.
+          I replaced everything from StartLine 3 which is imports. 
+          So I need to include EVERYTHING in between.
+      */}
+      
       {/* Summary Cards */}
       <div style={{ 
         display: 'grid', 
@@ -205,7 +230,7 @@ export default function Payments() {
           <h3 className="card-title">Historial de Pagos</h3>
           <span className="badge badge-neutral">{filteredPayments.length} registros</span>
         </div>
-        <div className="table-container">
+        <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
           <table>
             <thead>
               <tr>
@@ -220,7 +245,7 @@ export default function Payments() {
               </tr>
             </thead>
             <tbody>
-              {filteredPayments.length === 0 ? (
+              {currentPayments.length === 0 ? (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
                     <CurrencyDollarIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
@@ -228,7 +253,7 @@ export default function Payments() {
                   </td>
                 </tr>
               ) : (
-                filteredPayments.map(payment => (
+                currentPayments.map(payment => (
                   <tr key={payment.id}>
                     <td style={{ fontWeight: 500 }}>#{payment.id.toString().padStart(4, '0')}</td>
                     <td>
@@ -265,6 +290,18 @@ export default function Payments() {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Control */}
+        <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+            totalItems={totalItems}
+            startIndex={startIndex}
+            endIndex={endIndex}
+        />
       </div>
 
       {/* Daily Summary */}

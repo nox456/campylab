@@ -1,5 +1,4 @@
-'use client';
-
+import Pagination from '../components/Pagination';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -32,6 +31,10 @@ export default function Results() {
   const [loadingParams, setLoadingParams] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
   // Inventory State
   const [consumables, setConsumables] = useState([]); // [{ productoId, nombre, cantidad, unit }]
   const [productSearch, setProductSearch] = useState('');
@@ -46,6 +49,11 @@ export default function Results() {
           return () => clearTimeout(timer);
       }
   }, [successMessage]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, priorityFilter, statusFilter]);
 
   // Search products for inventory
   useEffect(() => {
@@ -91,6 +99,13 @@ export default function Results() {
     return matchesSearch && matchesPriority && matchesStatus;
   });
 
+  // Pagination Logic
+  const totalItems = filteredOrders.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentOrders = filteredOrders.slice(startIndex, endIndex);
+
   const urgentCount = orders.filter(o => o.prioridad === 'urgente').length;
   const pendingCount = orders.reduce((acc, o) => 
     acc + o.examenes.filter(e => e.estado === 'pendiente').length, 0
@@ -120,6 +135,8 @@ export default function Results() {
         setLoadingParams(false);
     }
   };
+
+
 
   const handleCloseModal = () => {
     setSelectedOrder(null);
@@ -304,14 +321,14 @@ export default function Results() {
 
 
       {/* Orders List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {filteredOrders.length === 0 ? (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+        {currentOrders.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
             <BeakerIcon style={{ width: '48px', height: '48px', color: 'var(--muted-foreground)', margin: '0 auto 0.5rem' }} />
             <p className="text-muted">No hay ordenes pendientes de procesar</p>
           </div>
         ) : (
-          filteredOrders.map(order => (
+          currentOrders.map(order => (
             <div 
               key={order.id} 
               className="card"
@@ -387,6 +404,22 @@ export default function Results() {
           ))
         )}
       </div>
+
+      {/* Pagination Control */}
+      <div style={{ marginBottom: '2rem' }}>
+        <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+            totalItems={totalItems}
+            startIndex={startIndex}
+            endIndex={endIndex}
+        />
+      </div>
+
+
 
       {/* Load Results Modal */}
       {selectedOrder && selectedExam && (
