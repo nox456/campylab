@@ -13,8 +13,8 @@ export const dashboardStorage = {
     const ordersToday = parseInt(ordersRes.rows[0].count);
 
     // Pending Results (Orders waiting for results)
-    // Statuses that imply pending results: 'creado', 'pendiente', 'procesando'
-    const resultsRes = await client.query("SELECT COUNT(*) FROM orden WHERE estado IN ('creado', 'pendiente', 'procesando')");
+    // Statuses that imply pending results: 'creado' (No results yet)
+    const resultsRes = await client.query("SELECT COUNT(*) FROM orden WHERE estado = 'creado'");
     const pendingResults = parseInt(resultsRes.rows[0].count);
 
     // Low Stock (Product level)

@@ -160,7 +160,7 @@ export const ordersStorage = {
             `INSERT INTO orden (id_paciente, total, estado, prioridad, observaciones)
              VALUES ($1, $2, $3, $4, $5)
              RETURNING *`,
-            [id_paciente, total, estado || 'pendiente', prioridad || 'rutina', observaciones]
+            [id_paciente, total, estado || 'creado', prioridad || 'rutina', observaciones]
         );
         const orderId = orderResult.rows[0].id;
 

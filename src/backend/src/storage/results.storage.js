@@ -28,7 +28,7 @@ export const resultsStorage = {
       JOIN detalle_orden do_table ON o.id = do_table.id_orden
       JOIN examen e ON do_table.id_examen = e.id
       LEFT JOIN resultado r ON r.id_orden = o.id AND r.id_examen = e.id
-      WHERE o.activo = TRUE AND o.estado != 'cancelada'
+      WHERE o.activo = TRUE AND o.estado != 'cancelado'
       ORDER BY o.fecha DESC, o.prioridad = 'urgente' DESC
     `;
     
@@ -171,7 +171,9 @@ export const resultsStorage = {
             
             let newStatus = 'resultados_cargados';
             if (pagado >= total) {
-                newStatus = 'pagado'; // Ready for Delivery
+                newStatus = 'pagado'; // Ready for Delivery - wait, pagado is 'Pagado / Por Entregar'
+                // User said: "tiene que tener los resultados cargados y estar pagado para eso" (pasar al estatus pagado)
+                // Entregado is a separate manual step usually.
             }
             
             await client.query(
@@ -179,8 +181,16 @@ export const resultsStorage = {
                 [newStatus, ordenId]
             );
         } else {
+             // If not all results done, ensure it's 'creado' (or 'resultados_cargados' if we support partial?)
+             // User logic implies strict states. If partial results, maybe just stay 'creado' or a partial state?
+             // Since we only have 'creado', 'resultados_cargados', 'pagado'...
+             // 'resultados_cargados' implies ALL results loaded? Usually yes.
+             // So if partially loaded, it should probably stay 'creado' (which counts as "En Proceso" in frontend label).
+             // We remove 'procesando' logic.
+             // Ensure it is 'creado' if it was somehow else? 
+             // Actually, if we are adding results, it's definitely 'creado' (En Proceso).
              await client.query(
-                `UPDATE orden SET estado = 'procesando' WHERE id = $1 AND (estado = 'pendiente' OR estado = 'creado')`,
+                `UPDATE orden SET estado = 'creado' WHERE id = $1 AND (estado = 'creado')`, // redundant but safe
                 [ordenId]
             );
         }

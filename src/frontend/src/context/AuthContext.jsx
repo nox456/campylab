@@ -6,7 +6,7 @@ import { authApi } from '../services/api';
 const AuthContext = createContext(null);
 
 const PERMISSIONS = {
-  Admin: {
+  admin: {
     patients: ['create', 'read', 'update', 'delete'],
     orders: ['create', 'read', 'update', 'delete'],
     payments: ['create', 'read', 'update', 'delete'],
@@ -16,7 +16,7 @@ const PERMISSIONS = {
     exams: ['create', 'read', 'update', 'delete'],
     dashboard: ['view_income'], // Can see income stats
   },
-  Bioanalista: {
+  bioanalista: {
     patients: ['create', 'read', 'update'],
     orders: ['create', 'read', 'update'],
     payments: [], // No access to payments
@@ -26,7 +26,7 @@ const PERMISSIONS = {
     exams: ['read'],
     dashboard: ['view'], // Can see dashboard but not income
   },
-  Asistente: {
+  asistente: {
     patients: ['create', 'read', 'update'],
     orders: ['create', 'read', 'update'],
     payments: [], // No access to payments

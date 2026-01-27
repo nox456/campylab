@@ -97,7 +97,7 @@ async function initDB() {
         id_paciente INTEGER NOT NULL REFERENCES pacientes(id),
         fecha DATE NOT NULL DEFAULT CURRENT_DATE,
         total DECIMAL(10, 2) NOT NULL,
-        estado VARCHAR(50) NOT NULL DEFAULT 'pendiente',
+        estado VARCHAR(50) NOT NULL DEFAULT 'creado',
         prioridad VARCHAR(50) DEFAULT 'rutina',
         observaciones TEXT,
         activo BOOLEAN DEFAULT TRUE

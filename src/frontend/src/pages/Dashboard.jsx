@@ -32,34 +32,37 @@ export default function Dashboard() {
     fetch('/api/dashboard')
       .then(res => res.json())
       .then(data => {
+        console.log('Dashboard Data:', data);
         if (data) {
-            setStats(data.stats || {
-                totalPatients: 0,
-                ordersToday: 0,
-                pendingResults: 0,
-                lowStockItems: 0,
-                totalRevenue: 0,
+            setStats({
+                totalPatients: Number(data.stats?.totalPatients) || 0,
+                ordersToday: Number(data.stats?.ordersToday) || 0,
+                pendingResults: Number(data.stats?.pendingResults) || 0,
+                lowStockItems: Number(data.stats?.lowStockItems) || 0,
+                totalRevenue: Number(data.stats?.totalRevenue) || 0,
             });
             setRecentOrders(data.recentOrders || []);
             setLowStockItems(data.lowStockItems || []);
         }
       })
-      .catch(console.error);
+      .catch(err => {
+        console.error('Error loading dashboard:', err);
+      });
   }, []);
 
   const getStatusBadge = (status) => {
     const badges = {
-      pendiente: 'status-pill status-pending',
-      procesando: 'badge badge-info',
+      creado: 'badge badge-info',
+      resultados_cargados: 'badge badge-warning',
       pagado: 'badge badge-success',
-      completado: 'status-pill status-completed',
+      entregado: 'status-pill status-completed',
       cancelado: 'status-pill status-cancelled',
     };
     const labels = {
-      pendiente: 'Pendiente',
-      procesando: 'Procesando',
+      creado: 'En espera de Resultados',
+      resultados_cargados: 'En Espera de Pago',
       pagado: 'Pagado',
-      completado: 'Completado',
+      entregado: 'Entregado',
       cancelado: 'Cancelado',
     };
     return { class: badges[status] || 'badge badge-neutral', label: labels[status] || status };

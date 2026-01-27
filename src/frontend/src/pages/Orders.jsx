@@ -23,7 +23,7 @@ export default function Orders() {
   const { showToast } = useToast();
   const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('pendiente');
+  const [statusFilter, setStatusFilter] = useState('activas');
   const [showCreateModal, setShowCreateModal] = useState(false);
   /* const [showFilters, setShowFilters] = useState(false); */
   const [loading, setLoading] = useState(false);
@@ -77,7 +77,7 @@ export default function Orders() {
       o.paciente_nombre.toLowerCase().includes(searchLow) ||
       o.paciente_cedula.toString().includes(searchTerm);
     let matchesStatus = true;
-    if (statusFilter === 'pendiente') {
+    if (statusFilter === 'activas') {
         matchesStatus = o.estado !== 'entregado' && o.estado !== 'cancelado';
     } else if (statusFilter === 'todos') {
         matchesStatus = true;
@@ -96,11 +96,9 @@ export default function Orders() {
 
   const getStatusBadge = (status) => {
     const badges = {
-      creado: { class: 'badge badge-neutral', label: 'En espera de Resultados' },
-      pendiente: { class: 'badge badge-neutral', label: 'En espera de Resultados' },
-      procesando: { class: 'badge badge-info', label: 'En espera de Resultados' },
+      creado: { class: 'badge badge-info', label: 'En espera de Resultados' },
       resultados_cargados: { class: 'badge badge-warning', label: 'En Espera de Pago' },
-      pagado: { class: 'badge badge-success', label: 'Pendiente por entregar' },
+      pagado: { class: 'badge badge-success', label: 'Pagado / Por Entregar' },
       entregado: { class: 'status-pill status-completed', label: 'Entregado' },
       cancelado: { class: 'status-pill status-cancelled', label: 'Cancelado' },
     };
@@ -215,12 +213,13 @@ export default function Orders() {
               onChange={(e) => setStatusFilter(e.target.value)}
               style={{ width: '200px' }}
             >
-                <option value="pendiente">Pendiente (Activas)</option>
+                <option value="activas">Activas (Pendientes)</option>
+                <option value="todos">Todas</option>
                 <option value="creado">En espera de Resultados</option>
                 <option value="resultados_cargados">En Espera de Pago</option>
-                <option value="pagado">Pendiente por entregar</option>
+                <option value="pagado">Pagado / Por Entregar</option>
                 <option value="entregado">Entregado</option>
-                <option value="todos">Todas</option>
+                <option value="cancelado">Cancelado</option>
             </select>
         </div>
         {canCreate && (
