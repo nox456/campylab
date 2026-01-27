@@ -25,6 +25,7 @@ export default function Payments() {
   const [methodFilter, setMethodFilter] = useState('');
   /* const [showFilters, setShowFilters] = useState(false); */
   const [loading, setLoading] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState(0);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -32,12 +33,25 @@ export default function Payments() {
 
   useEffect(() => {
     fetchPayments();
+    fetchExchangeRate();
   }, []);
 
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, dateFilter, methodFilter]);
+
+  const fetchExchangeRate = async () => {
+    try {
+      const res = await fetch('/api/config/rate');
+      if (res.ok) {
+        const data = await res.json();
+        setExchangeRate(parseFloat(data.tasa) || 0);
+      }
+    } catch (e) {
+      console.error('Error fetching rate:', e);
+    }
+  };
 
   const fetchPayments = async () => {
     try {
@@ -159,8 +173,11 @@ export default function Payments() {
         <div className="stat-card">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
-              <p className="stat-card-value">Bs. {totals.bs.toFixed(2)}</p>
+              <p className="stat-card-value">Bs. {(totals.bs * exchangeRate).toFixed(2)}</p>
               <p className="stat-card-label">Total Bolívares</p>
+               <p className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
+                  Equivalente: ${totals.bs.toFixed(2)}
+               </p>
             </div>
             <div className="stat-card-icon" style={{ backgroundColor: 'rgba(8, 145, 178, 0.1)' }}>
               <CreditCardIcon style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
