@@ -43,12 +43,13 @@ export const examsStorage = {
   },
 
   async createExam(examData, details) {
+    const db = await client.connect();
     try {
-      await client.query('BEGIN');
+      await db.query('BEGIN');
 
       const { nombre, id_categoria_examen, precio } = examData;
       
-      const examResult = await client.query(
+      const examResult = await db.query(
         'INSERT INTO examen (nombre, id_categoria_examen, precio) VALUES ($1, $2, $3) RETURNING *',
         [nombre, id_categoria_examen, precio]
       );
@@ -58,18 +59,20 @@ export const examsStorage = {
         const vMin = (detail.valor_min !== undefined && detail.valor_min !== '') ? detail.valor_min : 0;
         const vMax = (detail.valor_max !== undefined && detail.valor_max !== '') ? detail.valor_max : 0;
 
-        await client.query(
+        await db.query(
           `INSERT INTO detallado_examen (id_examen, nombre, unidad, valor_min, valor_max)
            VALUES ($1, $2, $3, $4, $5)`,
           [examId, detail.nombre, detail.unidad, vMin, vMax]
         );
       }
 
-      await client.query('COMMIT');
+      await db.query('COMMIT');
       return { ...examResult.rows[0], detalles: details };
     } catch (e) {
-      await client.query('ROLLBACK');
+      await db.query('ROLLBACK');
       throw e;
+    } finally {
+      db.release();
     }
   },
 
@@ -91,15 +94,18 @@ export const examsStorage = {
     }
     
     // Hard Delete (Must delete details first)
+    const db = await client.connect();
     try {
-      await client.query('BEGIN');
-      await client.query('DELETE FROM detallado_examen WHERE id_examen = $1', [id]);
-      const result = await client.query('DELETE FROM examen WHERE id = $1 RETURNING *', [id]);
-      await client.query('COMMIT');
+      await db.query('BEGIN');
+      await db.query('DELETE FROM detallado_examen WHERE id_examen = $1', [id]);
+      const result = await db.query('DELETE FROM examen WHERE id = $1 RETURNING *', [id]);
+      await db.query('COMMIT');
       return result.rows[0];
     } catch (e) {
-      await client.query('ROLLBACK');
+      await db.query('ROLLBACK');
       throw e;
+    } finally {
+      db.release();
     }
   }
 };

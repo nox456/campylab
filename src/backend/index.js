@@ -28,8 +28,9 @@ app.use((err, req, res, next) => {
 
 async function start() {
   try {
-    await client.connect();
-    console.log('Database connected');
+    const db = await client.connect();
+    db.release();
+    console.log('Database connected (Pool)');
 
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);

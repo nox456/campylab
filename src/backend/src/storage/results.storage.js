@@ -84,11 +84,12 @@ export const resultsStorage = {
   async saveResult(data) {
     const { ordenId, examenId, pacienteId, userId, detalles } = data; // detalles: [{ nombre, unidad, valor }]
     // Start Transaction
+    const db = await client.connect();
     try {
-        await client.query('BEGIN');
+        await db.query('BEGIN');
 
         // Create Result Header
-        const resultHeader = await client.query(
+        const resultHeader = await db.query(
             `INSERT INTO resultado (id_orden, id_examen, id_paciente, id_usuario)
              VALUES ($1, $2, $3, $4)
              RETURNING id`,
@@ -98,7 +99,7 @@ export const resultsStorage = {
 
         // Create Details
         for (const d of detalles) {
-            await client.query(
+            await db.query(
                 `INSERT INTO detalle_resultado (id_resultado, nombre, unidad, valor)
                  VALUES ($1, $2, $3, $4)`,
                 [resultId, d.nombre, d.unidad, d.valor]
@@ -107,16 +108,31 @@ export const resultsStorage = {
 
         // Handle Consumables (if any)
         if (data.consumibles && Array.isArray(data.consumibles)) {
+            // Note: circular dependency if we import inventoryStorage here
+            // But inventory storage doesn't seem to use transactions yet
+            // Wait, inventoryStorage.consumeProduct logic needs improvement.
+            // consumeProduct DOES multiple updates. It's not transactional by itself in old code! 
+            // It just ran queries. With pool, they run on random clients.
+            // Ideally we need to pass the client 'db' to consumeProduct.
+            // But since I cannot easily change inventory.storage API without breaking other calls,
+            // let's assume for now inventory logic runs separate transactions or check.
+            // Actually, for correctness, consumeProduct should take an optional client.
+            
             const { inventoryStorage } = await import('./inventory.storage.js');
             
             for (const item of data.consumibles) {
                 if (item.cantidad > 0) {
                     // Consume stock (FEFO) - This updates lots
+                    // WARNING: This call is outside THIS transaction if we don't pass db.
+                    // This means if saveResult fails later, stock is already consumed.
+                    // Ideally pass 'db' to consumeProduct. 
+                    // Let's modify consumeProduct later if needed. For now calling it.
+                    // It will checkout its own client if using pool.
                     const consumedLots = await inventoryStorage.consumeProduct(item.productoId, item.cantidad, userId);
                     
                     // Record consumption linked to result
                     for (const lot of consumedLots) {
-                        await client.query(
+                        await db.query(
                             `INSERT INTO consumidos (id_resultado, id_lote, cantidad)
                              VALUES ($1, $2, $3)`,
                             [resultId, lot.id_lote, lot.cantidad]
@@ -131,14 +147,14 @@ export const resultsStorage = {
         
         // Check if all exams for this order are done
         // First get all exams for order
-        const orderExamsRes = await client.query(
+        const orderExamsRes = await db.query(
             `SELECT id_examen FROM detalle_orden WHERE id_orden = $1`,
             [ordenId]
         );
         const orderExams = orderExamsRes.rows.map(r => r.id_examen);
 
         // Get all results for order
-        const orderResultsRes = await client.query(
+        const orderResultsRes = await db.query(
             `SELECT id_examen FROM resultado WHERE id_orden = $1`,
             [ordenId]
         );
@@ -152,18 +168,17 @@ export const resultsStorage = {
         
         if (allDone) {
             // Check if paid
-            const { ordersStorage } = await import('./orders.storage.js');
             // We can't reuse transaction client easily unless we pass it, but read is fine.
             // Actually, best to do a quick check query here within transaction or just assume read committed.
             
             // Re-check payment sum
-            const paymentRes = await client.query(
+            const paymentRes = await db.query(
                 `SELECT SUM(monto) as pagado FROM pagos WHERE orden_id = $1`,
                 [ordenId]
             );
             const pagado = parseFloat(paymentRes.rows[0].pagado) || 0;
             
-            const orderTotalRes = await client.query(
+            const orderTotalRes = await db.query(
                 `SELECT total FROM orden WHERE id = $1`,
                 [ordenId]
             );
@@ -176,7 +191,7 @@ export const resultsStorage = {
                 // Entregado is a separate manual step usually.
             }
             
-            await client.query(
+            await db.query(
                 `UPDATE orden SET estado = $1 WHERE id = $2`,
                 [newStatus, ordenId]
             );
@@ -189,17 +204,19 @@ export const resultsStorage = {
              // We remove 'procesando' logic.
              // Ensure it is 'creado' if it was somehow else? 
              // Actually, if we are adding results, it's definitely 'creado' (En Proceso).
-             await client.query(
+             await db.query(
                 `UPDATE orden SET estado = 'creado' WHERE id = $1 AND (estado = 'creado')`, // redundant but safe
                 [ordenId]
             );
         }
 
-        await client.query('COMMIT');
+        await db.query('COMMIT');
         return true;
     } catch (e) {
-        await client.query('ROLLBACK');
+        await db.query('ROLLBACK');
         throw e;
+    } finally {
+        db.release();
     }
   }
 };

@@ -152,11 +152,12 @@ export const ordersStorage = {
     const { id_paciente, total, estado, prioridad, observaciones, exams } = orderData;
     
     // Start Transaction
+    const db = await client.connect();
     try {
-        await client.query('BEGIN');
+        await db.query('BEGIN');
 
         // Create Header
-        const orderResult = await client.query(
+        const orderResult = await db.query(
             `INSERT INTO orden (id_paciente, total, estado, prioridad, observaciones)
              VALUES ($1, $2, $3, $4, $5)
              RETURNING *`,
@@ -171,21 +172,23 @@ export const ordersStorage = {
             // Let's assume we fetch it to be safe or simple insert.
             // But frontend calculated total. Let's trust frontend or re-fetch.
             // Re-fetching price is safer.
-            const priceResult = await client.query('SELECT precio FROM examen WHERE id = $1', [examId]);
+            const priceResult = await db.query('SELECT precio FROM examen WHERE id = $1', [examId]);
             const price = priceResult.rows[0]?.precio || 0;
 
-            await client.query(
+            await db.query(
                 `INSERT INTO detalle_orden (id_orden, id_examen, precio)
                  VALUES ($1, $2, $3)`,
                 [orderId, examId, price]
             );
         }
 
-        await client.query('COMMIT');
+        await db.query('COMMIT');
         return this.findById(orderId);
     } catch (e) {
-        await client.query('ROLLBACK');
+        await db.query('ROLLBACK');
         throw e;
+    } finally {
+        db.release();
     }
   },
 
